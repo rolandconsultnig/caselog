@@ -1,0 +1,789 @@
+// Prisma schema for Comprehensive SGBV Case Management System - Phase 1
+// This implements the core entities with 300+ fields
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT & USER MANAGEMENT
+// ============================================
+
+enum TenantType {
+  STATE
+  FEDERAL
+}
+
+enum AccessLevel {
+  LEVEL_1 // Read only
+  LEVEL_2 // Create cases
+  LEVEL_3 // Approve/Reject cases
+  LEVEL_4 // Delete with approval
+  LEVEL_5 // Full approval authority
+  SUPER_ADMIN // System administration
+  APP_ADMIN // Application administrator
+}
+
+model Tenant {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  code        String      @unique
+  type        TenantType
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  users       User[]
+  cases       Case[]
+  
+  @@index([type])
+  @@index([code])
+}
+
+model User {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String?
+  accessLevel       AccessLevel
+  tenantId          String
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isActive          Boolean     @default(true)
+  lastLogin         DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  casesCreated      Case[]      @relation("CaseCreator")
+  casesInvestigating Case[]     @relation("CaseInvestigator")
+  casesCoordinating Case[]      @relation("CaseCoordinator")
+  auditLogs         AuditLog[]
+  
+  @@index([tenantId])
+  @@index([accessLevel])
+  @@index([email])
+}
+
+// ============================================
+// CASE MANAGEMENT (CORE ENTITY) - 40+ Fields
+// ============================================
+
+enum CaseType {
+  SGBV
+  TRAFFICKING
+  DOMESTIC_VIOLENCE
+  HARASSMENT
+  OTHER
+}
+
+enum CaseStatus {
+  NEW
+  ACTIVE
+  INVESTIGATION
+  PENDING_COURT
+  CLOSED
+  ARCHIVED
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum Jurisdiction {
+  FEDERAL
+  STATE
+}
+
+model Case {
+  id                      String          @id @default(cuid())
+  
+  // Auto-Generated Fields
+  caseNumber              String          @unique // CL-YYYYMM-XXXX
+  reportedDate            DateTime        @default(now())
+  
+  // Required Fields (Minimum 4)
+  title                   String          // max 255 chars
+  description             String          @db.Text
+  incidentDate            DateTime
+  incidentState           String
+  
+  // Classification (With Defaults)
+  caseType                CaseType        @default(SGBV)
+  status                  CaseStatus      @default(NEW)
+  priority                CasePriority    @default(MEDIUM)
+  
+  // Location Information - Incident
+  incidentLga             String?
+  incidentAddress         String?         @db.Text
+  incidentLocation        Json?           // {lat, long}
+  
+  // Location Information - Reporting
+  reportedState           String?
+  reportedLga             String?
+  reportedAddress         String?         @db.Text
+  
+  // Assignment
+  investigatorId          String?
+  investigator            User?           @relation("CaseInvestigator", fields: [investigatorId], references: [id])
+  coordinatorId           String?
+  coordinator             User?           @relation("CaseCoordinator", fields: [coordinatorId], references: [id])
+  assignedState           String?
+  jurisdiction            Jurisdiction    @default(FEDERAL)
+  
+  // Progress Tracking
+  initialAssessmentCompleted Boolean      @default(false)
+  investigationStarted    Boolean         @default(false)
+  courtDate               DateTime?
+  courtStatus             String?
+  finalOutcome            String?         @db.Text
+  convictionDate          DateTime?
+  sentence                String?         @db.Text
+  
+  // Metadata Flags
+  isSensitive             Boolean         @default(false)
+  requiresSpecialHandling Boolean         @default(false)
+  mediaInvolved           Boolean         @default(false)
+  international           Boolean         @default(false)
+  crossJurisdictional     Boolean         @default(false)
+  
+  // Tenant & Creator
+  tenantId                String
+  tenant                  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdById             String
+  createdBy               User            @relation("CaseCreator", fields: [createdById], references: [id])
+  
+  // Timestamps
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  
+  // Relationships
+  victims                 Victim[]
+  perpetrators            Perpetrator[]
+  witnesses               Witness[]
+  evidence                Evidence[]
+  files                   CaseFile[]
+  offences                CaseOffence[]
+  services                CaseService[]
+  civilSocieties          CaseCivilSociety[]
+  chatMessages            ChatMessage[]
+  auditLogs               AuditLog[]
+  
+  @@index([tenantId])
+  @@index([status])
+  @@index([caseNumber])
+  @@index([createdById])
+  @@index([caseType])
+  @@index([priority])
+  @@index([incidentDate])
+  @@index([investigatorId])
+  @@index([coordinatorId])
+}
+
+// ============================================
+// VICTIM MANAGEMENT - 70+ Fields Per Victim
+// ============================================
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum RelationshipStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+  COHABITING
+  INTIMATE_PARTNER
+}
+
+enum PreferredContactMethod {
+  PHONE
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum HIVStatus {
+  POSITIVE
+  NEGATIVE
+  UNKNOWN
+  DECLINED
+}
+
+enum PregnancyStatus {
+  PREGNANT
+  NOT_PREGNANT
+  UNKNOWN
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Victim {
+  id                      String          @id @default(cuid())
+  caseId                  String
+  case                    Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  victimNumber            String          // V001, V002, etc.
+  
+  // Personal Information
+  firstName               String
+  middleName              String?
+  lastName                String
+  aliases                 String[]
+  dateOfBirth             DateTime?
+  age                     Int
+  gender                  Gender
+  nationality             String          @default("Nigerian")
+  stateOfOrigin           String?
+  lgaOfOrigin             String?
+  
+  // Contact Information
+  phoneNumber             String?
+  alternatePhone          String?
+  email                   String?
+  preferredContactMethod  PreferredContactMethod?
+  
+  // Current Address
+  currentAddress          String?         @db.Text
+  currentCity             String?
+  currentState            String?
+  currentLga              String?
+  currentPostalCode       String?
+  
+  // Permanent Address
+  permanentAddress        String?         @db.Text
+  permanentCity           String?
+  permanentState          String?
+  permanentLga            String?
+  sameAsCurrent           Boolean         @default(false)
+  
+  // Emergency Contact 1
+  emergencyContact1Name   String?
+  emergencyContact1Relationship String?
+  emergencyContact1Phone  String?
+  emergencyContact1Address String?       @db.Text
+  
+  // Emergency Contact 2
+  emergencyContact2Name   String?
+  emergencyContact2Relationship String?
+  emergencyContact2Phone  String?
+  emergencyContact2Address String?       @db.Text
+  
+  // Medical & Health
+  medicalHistory          String?         @db.Text
+  currentMedications      String?         @db.Text
+  allergies               String?         @db.Text
+  disabilities            String?         @db.Text
+  mentalHealthConditions  String?         @db.Text
+  substanceAbuse          String?         @db.Text
+  hivStatus               HIVStatus?
+  pregnancyStatus         PregnancyStatus?
+  
+  // Incident-Specific Information
+  relationshipToPerpetrator String?
+  incidentDescription     String?         @db.Text
+  injuriesSustained       String?         @db.Text
+  medicalTreatmentReceived Boolean?
+  hospitalName            String?
+  medicalReportNumber     String?
+  psychologicalImpact     String?         @db.Text
+  
+  // Support Services
+  servicesNeeded          String[]
+  servicesProvided        String[]
+  shelterRequired         Boolean         @default(false)
+  shelterProvided         Boolean         @default(false)
+  legalAidRequired        Boolean         @default(false)
+  counselingRequired      Boolean         @default(false)
+  
+  // Privacy & Consent
+  consentToShare          Boolean         @default(false)
+  consentToPhotograph     Boolean         @default(false)
+  consentToTestify        Boolean         @default(false)
+  anonymityRequested      Boolean         @default(false)
+  protectionOrderRequired Boolean         @default(false)
+  
+  // Victim Statement
+  statementText           String?         @db.Text
+  statementDate           DateTime?
+  statementRecordedBy     String?
+  statementAudioPath      String?
+  statementVideoPath      String?
+  statementVerified       Boolean         @default(false)
+  
+  // Risk Assessment
+  riskLevel               RiskLevel       @default(MEDIUM)
+  riskFactors             String[]
+  safetyPlan              String?         @db.Text
+  immediateThreats        String?         @db.Text
+  
+  // Metadata
+  isMinor                 Boolean         @default(false)
+  isDeceased              Boolean         @default(false)
+  isDisabled              Boolean         @default(false)
+  requiresInterpreter     Boolean         @default(false)
+  interpreterLanguage     String?
+  
+  // Timestamps
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  
+  @@index([caseId])
+  @@index([victimNumber])
+  @@index([isMinor])
+}
+
+// ============================================
+// PERPETRATOR MANAGEMENT - 60+ Fields
+// ============================================
+
+enum BuildType {
+  SLIM
+  AVERAGE
+  HEAVY
+  MUSCULAR
+}
+
+enum ConditionStatus {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+}
+
+enum CooperationLevel {
+  COOPERATIVE
+  UNCOOPERATIVE
+  HOSTILE
+}
+
+model Perpetrator {
+  id                      String          @id @default(cuid())
+  caseId                  String
+  case                    Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  perpetratorNumber       String          // P001, P002, etc.
+  
+  // Personal Information
+  firstName               String
+  middleName              String?
+  lastName                String
+  aliases                 String[]
+  dateOfBirth             DateTime?
+  age                     Int?
+  gender                  Gender?
+  nationality             String?
+  stateOfOrigin           String?
+  
+  // Physical Description
+  height                  String?
+  weight                  String?
+  buildType               BuildType?
+  complexion              String?
+  eyeColor                String?
+  hairColor               String?
+  hairStyle               String?
+  facialHair              String?
+  distinctiveFeatures     String?         @db.Text
+  tattoos                 String?         @db.Text
+  scars                   String?         @db.Text
+  piercings               String?         @db.Text
+  
+  // Contact Information
+  phoneNumber             String?
+  alternatePhone          String?
+  email                   String?
+  socialMediaAccounts     Json?
+  
+  // Known Associates
+  knownAssociates         String?         @db.Text
+  gangAffiliation         String?
+  accomplices             String[]
+  
+  // Current Address
+  currentAddress          String?         @db.Text
+  currentCity             String?
+  currentState            String?
+  currentLga              String?
+  
+  // Previous Addresses
+  previousAddresses       Json[]
+  
+  // Workplace
+  workplaceName           String?
+  workplaceAddress        String?         @db.Text
+  occupation              String?
+  
+  // Relationship to Victim
+  relationshipToVictim    String?
+  relationshipDuration    String?
+  cohabitation            Boolean         @default(false)
+  dependents              Int?
+  
+  // Legal Status
+  arrested                Boolean         @default(false)
+  arrestDate              DateTime?
+  arrestLocation          String?
+  arrestingAgency         String?
+  arrestingOfficer        String?
+  detentionFacility       String?
+  
+  chargesField            Boolean         @default(false)
+  chargeDetails           String?         @db.Text
+  chargeDate              DateTime?
+  
+  onBail                  Boolean         @default(false)
+  bailAmount              Decimal?        @db.Decimal(10, 2)
+  bailDate                DateTime?
+  bailConditions          String?         @db.Text
+  suretyName              String?
+  suretyNIN               String?
+  suretyPhone             String?
+  
+  // Investigation Information
+  suspectStatement        String?         @db.Text
+  statementDate           DateTime?
+  lawyerName              String?
+  lawyerContact           String?
+  cooperationLevel        CooperationLevel?
+  
+  // Risk Assessment
+  flightRisk              RiskLevel       @default(MEDIUM)
+  violenceRisk            RiskLevel       @default(MEDIUM)
+  riskToPublic            Boolean         @default(false)
+  riskFactors             String[]
+  
+  // Criminal History
+  priorConvictions        Boolean         @default(false)
+  priorConvictionsDetails String?         @db.Text
+  priorArrests            Int             @default(0)
+  priorSGBVCases          Boolean         @default(false)
+  restrainingOrders       Boolean         @default(false)
+  
+  // Timestamps
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  
+  @@index([caseId])
+  @@index([perpetratorNumber])
+  @@index([arrested])
+}
+
+// ============================================
+// EVIDENCE MANAGEMENT - 60+ Fields
+// ============================================
+
+enum EvidenceType {
+  PHYSICAL
+  DIGITAL
+  DOCUMENTARY
+  FORENSIC
+  TESTIMONIAL
+  PHOTOGRAPHIC
+  VIDEO
+  AUDIO
+  OTHER
+}
+
+enum StorageType {
+  EVIDENCE_ROOM
+  LAB
+  DIGITAL_STORAGE
+  COURT
+  OTHER
+}
+
+enum CustodyStatus {
+  IN_CUSTODY
+  TRANSFERRED
+  RELEASED
+  DESTROYED
+}
+
+enum VirusScanResult {
+  CLEAN
+  INFECTED
+  SUSPICIOUS
+  NOT_SCANNED
+}
+
+model Evidence {
+  id                      String          @id @default(cuid())
+  caseId                  String
+  case                    Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  evidenceNumber          String          // E001, E002, etc.
+  
+  // Basic Information
+  evidenceType            EvidenceType
+  description             String          @db.Text
+  category                String?
+  subcategory             String?
+  
+  // Collection Details
+  collectedDate           DateTime
+  collectedTime           String?
+  collectedBy             String
+  collectedByName         String
+  collectionLocation      String          @db.Text
+  collectionMethod        String?         @db.Text
+  collectionCircumstances String?         @db.Text
+  
+  // Physical Evidence Details
+  physicalDescription     String?         @db.Text
+  dimensions              String?
+  weight                  String?
+  color                   String?
+  material                String?
+  condition               ConditionStatus @default(GOOD)
+  quantity                Int             @default(1)
+  
+  // Digital Evidence Details
+  deviceType              String?
+  deviceMake              String?
+  deviceModel             String?
+  deviceSerialNumber      String?
+  storageCapacity         String?
+  dataType                String?
+  fileFormat              String?
+  fileSize                String?
+  hashValue               String?
+  
+  // Storage Information
+  storageLocation         String
+  storageType             StorageType
+  storageConditions       String?
+  containerType           String?
+  sealNumber              String?
+  
+  // Forensic Analysis
+  forensicAnalysisRequired Boolean        @default(false)
+  forensicAnalysisRequested Boolean       @default(false)
+  forensicAnalysisDate    DateTime?
+  forensicLab             String?
+  forensicAnalystName     String?
+  forensicAnalystID       String?
+  forensicReportNumber    String?
+  forensicReportPath      String?
+  forensicFindings        String?         @db.Text
+  dnaProfile              String?
+  fingerprintsFound       Boolean         @default(false)
+  
+  // Legal Admissibility
+  admissible              Boolean         @default(true)
+  admissibilityNotes      String?         @db.Text
+  legalChallenges         String?         @db.Text
+  expertWitnessRequired   Boolean         @default(false)
+  expertWitnessName       String?
+  
+  // Chain of Custody
+  currentCustodian        String
+  currentCustodianName    String
+  custodyStatus           CustodyStatus   @default(IN_CUSTODY)
+  
+  // Quality Control
+  photographed            Boolean         @default(false)
+  photographPath          String?
+  videographed            Boolean         @default(false)
+  videoPath               String?
+  documented              Boolean         @default(true)
+  documentationComplete   Boolean         @default(false)
+  qualityCheckPassed      Boolean         @default(false)
+  qualityCheckBy          String?
+  qualityCheckDate        DateTime?
+  
+  // Metadata
+  tags                    String[]
+  notes                   String?         @db.Text
+  relatedEvidenceIds      String[]
+  isKeyEvidence           Boolean         @default(false)
+  presentedInCourt        Boolean         @default(false)
+  courtPresentationDate   DateTime?
+  
+  // Timestamps
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  
+  @@index([caseId])
+  @@index([evidenceNumber])
+  @@index([evidenceType])
+  @@index([custodyStatus])
+}
+
+// ============================================
+// AUDIT LOG - Complete Activity Tracking
+// ============================================
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  ASSIGN
+  TRANSFER
+  EXPORT
+  PRINT
+  SHARE
+  LOGIN
+  LOGOUT
+}
+
+enum AuditEntityType {
+  CASE
+  VICTIM
+  PERPETRATOR
+  WITNESS
+  EVIDENCE
+  DOCUMENT
+  USER
+  SYSTEM
+}
+
+enum SecurityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model AuditLog {
+  id                      String          @id @default(cuid())
+  
+  // Case Reference (optional)
+  caseId                  String?
+  case                    Case?           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  // User Information
+  userId                  String
+  user                    User            @relation(fields: [userId], references: [id])
+  userName                String
+  userRole                String
+  
+  // Action Details
+  action                  AuditAction
+  entityType              AuditEntityType
+  entityId                String?
+  entityName              String?
+  
+  // Change Tracking
+  changesMade             Json?           // {field, oldValue, newValue}
+  affectedFields          String[]
+  
+  // Context
+  ipAddress               String?
+  userAgent               String?
+  location                String?
+  deviceType              String?
+  
+  // Security
+  securityLevel           SecurityLevel   @default(LOW)
+  suspicious              Boolean         @default(false)
+  flaggedForReview        Boolean         @default(false)
+  reviewedBy              String?
+  reviewedAt              DateTime?
+  
+  // Metadata
+  description             String?         @db.Text
+  notes                   String?         @db.Text
+  timestamp               DateTime        @default(now())
+  sessionId               String?
+  
+  @@index([caseId])
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([timestamp])
+  @@index([suspicious])
+}
+
+// ============================================
+// PLACEHOLDER MODELS FOR PHASE 2 & 3
+// ============================================
+
+// These will be fully implemented in Phase 2
+model Witness {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([caseId])
+}
+
+model CaseFile {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  fileName    String
+  filePath    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([caseId])
+}
+
+model CaseOffence {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  offenceName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([caseId])
+}
+
+model CaseService {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  serviceName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([caseId])
+}
+
+model CaseCivilSociety {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  ngoName     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([caseId])
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  message     String   @db.Text
+  senderId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([caseId])
+}
+

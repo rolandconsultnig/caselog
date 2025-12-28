@@ -1,0 +1,1050 @@
+'use client';
+
+import { useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { ArrowLeft, Save } from 'lucide-react';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import axios from 'axios';
+import { getPermissions } from '@/lib/permissions';
+import { TenantType } from '@prisma/client';
+import { MultiStepForm, FormStep } from '@/components/ui/MultiStepForm';
+
+export default function NewCasePage() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const permissions = session
+    ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
+    : null;
+
+  // Form state
+  const [formData, setFormData] = useState({
+    // Case overview
+    title: '',
+    description: '',
+    incidentDate: '',
+    incidentState: '',
+    incidentLga: '',
+    incidentAddress: '',
+    priority: 'MEDIUM',
+    formOfSGBV: 'RAPE',
+    legalServiceType: 'PROSECUTION',
+    dateCharged: '',
+    chargeNumber: '',
+    dateFiledInCourt: '',
+    administrativeNumber: '',
+    mojCaseNumber: '',
+    dateOfArraignment: '',
+    bailConditions: '',
+    statusOfCase: '',
+    suspectReleasedOnBail: false,
+    bailReleaseDate: '',
+    suretysNIN: '',
+    suretysPhoneNumber: '',
+
+    // Victim
+    victim: {
+      name: '',
+      gender: 'FEMALE',
+      age: 0,
+      dateOfBirth: '',
+      phoneNumber: '',
+      email: '',
+      educationQualification: '',
+      nationality: 'Nigerian',
+      maritalStatus: 'SINGLE',
+      occupation: '',
+      address: '',
+      language: '',
+      fingerprintId: '',
+      faceRecognitionId: '',
+      guardianName: '',
+      guardianPhoneNumber: '',
+      guardianAddress: '',
+    },
+
+    // Perpetrator
+    perpetrator: {
+      name: '',
+      dateOfBirth: '',
+      placeOfBirth: '',
+      age: 0,
+      address: '',
+      phoneNumber: '',
+      email: '',
+      gender: 'MALE',
+      educationQualification: '',
+      nationality: 'Nigerian',
+      maritalStatus: 'SINGLE',
+      language: '',
+      occupation: '',
+      relationshipWithVictim: '',
+      previousCriminalHistory: '',
+      fingerprintId: '',
+      faceRecognitionId: '',
+    },
+
+    // Offence
+    offence: {
+      dateOfOffence: '',
+      placeOfOffence: '',
+      natureOfOffence: '',
+      offenceCode: '',
+      offenceName: '',
+      applicableLaw: '',
+      penalty: '',
+      dateReported: '',
+      suspectArrested: false,
+      dateArrested: '',
+      dateInvestigationStarted: '',
+      investigationStatus: '',
+      suspectReleasedOnBail: false,
+      addressOfInvestigatingAgency: '',
+    },
+  });
+
+  const handleSubmit = async () => {
+    // Validation
+    if (!formData.title || !formData.description || !formData.incidentDate || !formData.incidentState) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    if (!formData.victim.name || !formData.victim.gender || !formData.victim.age) {
+      toast.error('Please fill in all required victim details');
+      return;
+    }
+    if (formData.legalServiceType === 'PROSECUTION' && !formData.chargeNumber) {
+      toast.error('Charge Number is required when Prosecution is selected');
+      return;
+    }
+    if (formData.suspectReleasedOnBail && (!formData.bailReleaseDate || !formData.suretysNIN || !formData.suretysPhoneNumber)) {
+      toast.error('Please fill in all bail release details');
+      return;
+    }
+    if (formData.victim.age > 0 && formData.victim.age < 18) {
+      if (!formData.victim.guardianName || !formData.victim.guardianPhoneNumber) {
+        toast.error('Guardian details are required for minors');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await axios.post('/api/cases', {
+        ...formData,
+        incidentDate: new Date(formData.incidentDate).toISOString(),
+      });
+      toast.success('Case created successfully');
+      router.push(`/dashboard/cases/${response.data.id}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to create case');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!session || !permissions?.canCreate) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-8">
+          <p className="text-red-600">You do not have permission to create cases</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <Link href="/dashboard/cases">
+            <Button type="button" variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Cases
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Create New Case</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Fill in the details to create a new SGBV case
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <MultiStepForm onSubmit={handleSubmit}>
+        <FormStep>
+          <Card>
+            <CardHeader>
+              <CardTitle>Case Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Case Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Case Description *
+                </label>
+                <textarea
+                  required
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Incident Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.incidentDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, incidentDate: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Incident State *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.incidentState}
+                  onChange={(e) =>
+                    setFormData({ ...formData, incidentState: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Incident LGA
+                </label>
+                <input
+                  type="text"
+                  value={formData.incidentLga}
+                  onChange={(e) =>
+                    setFormData({ ...formData, incidentLga: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Incident Address
+                </label>
+                <textarea
+                  value={formData.incidentAddress}
+                  onChange={(e) =>
+                    setFormData({ ...formData, incidentAddress: e.target.value })
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Case Priority *
+                </label>
+                <select
+                  required
+                  value={formData.priority}
+                  onChange={(e) =>
+                    setFormData({ ...formData, priority: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                  <option value="URGENT">Urgent</option>
+                  <option value="CRITICAL">Critical</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Form of SGBV *
+                </label>
+                <select
+                  required
+                  value={formData.formOfSGBV}
+                  onChange={(e) =>
+                    setFormData({ ...formData, formOfSGBV: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="RAPE">Rape</option>
+                  <option value="SEXUAL_ASSAULT">Sexual Assault</option>
+                  <option value="DOMESTIC_VIOLENCE">Domestic Violence</option>
+                  <option value="TRAFFICKING">Trafficking</option>
+                  <option value="CHILD_ABUSE">Child Abuse</option>
+                  <option value="FORCED_MARRIAGE">Forced Marriage</option>
+                  <option value="FEMALE_GENITAL_MUTILATION">
+                    Female Genital Mutilation
+                  </option>
+                  <option value="HARMFUL_WIDOWHOOD_PRACTICES">
+                    Harmful Widowhood Practices
+                  </option>
+                  <option value="EMOTIONAL_ABUSE">Emotional Abuse</option>
+                  <option value="INCEST">Incest</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Legal Service Type
+                </label>
+                <select
+                  value={formData.legalServiceType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, legalServiceType: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="MEDIATION">Mediation</option>
+                  <option value="REFERRAL">Referral</option>
+                  <option value="LEGAL_COUNSELLING">Legal Counselling</option>
+                  <option value="DIVERSION">Diversion</option>
+                  <option value="PROSECUTION">Prosecution</option>
+                </select>
+              </div>
+
+              {formData.legalServiceType === 'PROSECUTION' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Charge Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.chargeNumber}
+                    onChange={(e) =>
+                      setFormData({ ...formData, chargeNumber: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  MOJ Case Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.mojCaseNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, mojCaseNumber: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+          </CardContent>
+          </Card>
+        </FormStep>
+        <FormStep>
+          <Card>
+            <CardHeader>
+              <CardTitle>Victim Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.victim.name}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, name: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender *
+                </label>
+                <select
+                  required
+                  value={formData.victim.gender}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, gender: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Age *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  value={formData.victim.age}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, age: parseInt(e.target.value) },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={formData.victim.phoneNumber}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, phoneNumber: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.victim.email}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, email: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Marital Status
+                </label>
+                <select
+                  value={formData.victim.maritalStatus}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, maritalStatus: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="SINGLE">Single</option>
+                  <option value="MARRIED">Married</option>
+                  <option value="DIVORCED">Divorced</option>
+                  <option value="WIDOWED">Widowed</option>
+                  <option value="SEPARATED">Separated</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Occupation
+                </label>
+                <input
+                  type="text"
+                  value={formData.victim.occupation}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, occupation: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nationality
+                </label>
+                <input
+                  type="text"
+                  value={formData.victim.nationality}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, nationality: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <textarea
+                  value={formData.victim.address}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      victim: { ...formData.victim, address: e.target.value },
+                    })
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              {formData.victim.age > 0 && formData.victim.age < 18 && (
+                <div className="md:col-span-2 border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Guardian Details (Required for Minors)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Guardian Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.victim.guardianName}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            victim: { ...formData.victim, guardianName: e.target.value },
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Guardian Phone Number *
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={formData.victim.guardianPhoneNumber}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            victim: { ...formData.victim, guardianPhoneNumber: e.target.value },
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Guardian Address
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={formData.victim.guardianAddress}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            victim: { ...formData.victim, guardianAddress: e.target.value },
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+          </Card>
+        </FormStep>
+        <FormStep>
+          <Card>
+            <CardHeader>
+              <CardTitle>Perpetrator/Suspect Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.perpetrator.name}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: { ...formData.perpetrator, name: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender
+                </label>
+                <select
+                  value={formData.perpetrator.gender}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: { ...formData.perpetrator, gender: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Age
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.perpetrator.age || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: {
+                        ...formData.perpetrator,
+                        age: parseInt(e.target.value) || 0,
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={formData.perpetrator.phoneNumber}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: {
+                        ...formData.perpetrator,
+                        phoneNumber: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Relationship with Victim
+                </label>
+                <input
+                  type="text"
+                  value={formData.perpetrator.relationshipWithVictim}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: {
+                        ...formData.perpetrator,
+                        relationshipWithVictim: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Occupation
+                </label>
+                <input
+                  type="text"
+                  value={formData.perpetrator.occupation}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: {
+                        ...formData.perpetrator,
+                        occupation: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <textarea
+                  value={formData.perpetrator.address}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: {
+                        ...formData.perpetrator,
+                        address: e.target.value,
+                      },
+                    })
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Previous Criminal History
+                </label>
+                <textarea
+                  value={formData.perpetrator.previousCriminalHistory}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      perpetrator: {
+                        ...formData.perpetrator,
+                        previousCriminalHistory: e.target.value,
+                      },
+                    })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="md:col-span-2 border-t pt-6 mt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Bail Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.suspectReleasedOnBail}
+                        onChange={(e) =>
+                          setFormData({ ...formData, suspectReleasedOnBail: e.target.checked })
+                        }
+                        className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Suspect Released on Bail
+                      </span>
+                    </label>
+                  </div>
+                  {formData.suspectReleasedOnBail && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Bail Release Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.bailReleaseDate}
+                          onChange={(e) =>
+                            setFormData({ ...formData, bailReleaseDate: e.target.value })
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Surety's NIN *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.suretysNIN}
+                          onChange={(e) =>
+                            setFormData({ ...formData, suretysNIN: e.target.value })
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Surety's Phone Number *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={formData.suretysPhoneNumber}
+                          onChange={(e) =>
+                            setFormData({ ...formData, suretysPhoneNumber: e.target.value })
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+          </Card>
+        </FormStep>
+        <FormStep>
+          <Card>
+            <CardHeader>
+              <CardTitle>Offence & Investigation Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Offence Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.offence.offenceName}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: { ...formData.offence, offenceName: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Offence Code
+                </label>
+                <input
+                  type="text"
+                  value={formData.offence.offenceCode}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: { ...formData.offence, offenceCode: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date of Offence
+                </label>
+                <input
+                  type="date"
+                  value={formData.offence.dateOfOffence}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: { ...formData.offence, dateOfOffence: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date Reported
+                </label>
+                <input
+                  type="date"
+                  value={formData.offence.dateReported}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: { ...formData.offence, dateReported: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Applicable Law
+                </label>
+                <input
+                  type="text"
+                  value={formData.offence.applicableLaw}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: { ...formData.offence, applicableLaw: e.target.value },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., Section 1 VAPPA"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Investigation Status
+                </label>
+                <input
+                  type="text"
+                  value={formData.offence.investigationStatus}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: {
+                        ...formData.offence,
+                        investigationStatus: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.offence.suspectArrested}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        offence: {
+                          ...formData.offence,
+                          suspectArrested: e.target.checked,
+                        },
+                      })
+                    }
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Suspect Arrested
+                  </span>
+                </label>
+              </div>
+
+              {formData.offence.suspectArrested && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Date Arrested
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.offence.dateArrested}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        offence: {
+                          ...formData.offence,
+                          dateArrested: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              )}
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nature of Offence *
+                </label>
+                <textarea
+                  required
+                  value={formData.offence.natureOfOffence}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: {
+                        ...formData.offence,
+                        natureOfOffence: e.target.value,
+                      },
+                    })
+                  }
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Describe the nature of the offence in detail..."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Place of Offence
+                </label>
+                <textarea
+                  value={formData.offence.placeOfOffence}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      offence: {
+                        ...formData.offence,
+                        placeOfOffence: e.target.value,
+                      },
+                    })
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+          </CardContent>
+          </Card>
+        </FormStep>
+      </MultiStepForm>
+    </DashboardLayout>
+  );
+}
+
