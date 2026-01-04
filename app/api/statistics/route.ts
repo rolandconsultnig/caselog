@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
       prisma.case.count({ where: { ...where, status: 'APPROVED' } }),
       prisma.case.count({ where: { ...where, status: 'REJECTED' } }),
       prisma.case.groupBy({
-        by: ['formOfSGBV'],
+        by: ['caseType'],
         where,
         _count: true,
       }),
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
         take: 10,
         orderBy: { createdAt: 'desc' },
         include: {
-          victim: { select: { name: true } },
+          victims: { select: { firstName: true, lastName: true }, take: 1 },
           tenant: { select: { name: true, code: true } },
         },
       }),
@@ -129,8 +129,10 @@ export async function GET(request: NextRequest) {
       prisma.courtRecord.count({ where: { case: where } }),
     ]);
 
-    // Get tenant names for state statistics
-    let stateStatistics = [];
+    // Get tenant names for state statistics and enhanced federal data
+    let stateStatistics: any[] = [];
+    let federalMetrics: any = {};
+    
     if (session.user.tenantType === 'FEDERAL' && casesByState.length > 0) {
       const tenants = await prisma.tenant.findMany({
         where: {
@@ -147,6 +149,20 @@ export async function GET(request: NextRequest) {
           count: stat._count,
         };
       });
+
+      // Calculate federal-level metrics
+      federalMetrics = {
+        totalStates: tenants.length,
+        activeStates: tenants.filter(t => t.type === 'STATE').length,
+        federalCases: totalCases,
+        averageCasesPerState: totalCases > 0 ? Math.round(totalCases / tenants.length) : 0,
+        topPerformingStates: stateStatistics
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5),
+        statesWithNoCases: tenants.filter(tenant => 
+          !stateStatistics.find(stat => stat.tenantId === tenant.id)
+        ).map(tenant => tenant.name),
+      };
     }
 
     return NextResponse.json({
@@ -161,10 +177,11 @@ export async function GET(request: NextRequest) {
         archived: archivedCases,
       },
       casesByType: casesByType.map((item: any) => ({
-        type: item.formOfSGBV,
+        type: item.caseType,
         count: item._count,
       })),
       casesByState: stateStatistics,
+      federalMetrics,
       priorityDistribution: {
         low: lowPriorityCases,
         medium: mediumPriorityCases,

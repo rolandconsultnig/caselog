@@ -38,7 +38,7 @@ export async function GET(
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { timestamp: 'desc' },
     });
 
     // Build timeline events
@@ -46,8 +46,8 @@ export async function GET(
       id: log.id,
       type: mapActionToType(log.action),
       title: log.action.replace(/_/g, ' '),
-      description: log.details,
-      timestamp: log.createdAt.toISOString(),
+      description: log.description || log.notes || '',
+      timestamp: log.timestamp.toISOString(),
       user: log.user,
       metadata: {
         action: log.action,
@@ -64,13 +64,16 @@ export async function GET(
         title: 'Case Created',
         description: `Case ${caseRecord.caseNumber} was created`,
         timestamp: caseRecord.createdAt.toISOString(),
-        user: undefined,
-        metadata: {},
+        user: null as any,
+        metadata: {
+          action: 'CREATE' as any,
+          entityType: 'CASE' as any,
+        },
       });
     }
 
     // Add approval event if case is approved
-    if (caseRecord.status === 'APPROVED' && caseRecord.updatedAt) {
+    if (caseRecord.status === 'CLOSED' && caseRecord.updatedAt) {
       const hasApprovalEvent = events.some((e) => e.type === 'approved');
       if (!hasApprovalEvent) {
         events.push({
@@ -79,8 +82,11 @@ export async function GET(
           title: 'Case Approved',
           description: 'Case was approved',
           timestamp: caseRecord.updatedAt.toISOString(),
-          user: undefined,
-          metadata: {},
+          user: null as any,
+          metadata: {
+          action: 'CREATE' as any,
+          entityType: 'CASE' as any,
+        },
         });
       }
     }

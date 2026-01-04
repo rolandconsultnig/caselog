@@ -19,24 +19,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Build where clause for tenant filtering
+    const where: any = {};
+    
+    // State admins can only see users from their own state
+    // Federal users can see all users
+    if (session.user.tenantType !== 'FEDERAL') {
+      where.tenantId = session.user.tenantId;
+    }
+
     const users = await prisma.user.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
-        tenant: {
-          select: {
-            name: true,
-          },
-        },
+        tenant: true,
       },
     });
 
     const formattedUsers = users.map(user => ({
       id: user.id,
-      name: `${user.firstName} ${user.lastName}`,
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
+      phoneNumber: user.phoneNumber,
       accessLevel: user.accessLevel,
       tenantName: user.tenant.name,
+      tenantType: user.tenant.type,
       isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      lastLogin: user.lastLogin?.toISOString(),
+      department: '',
+      position: '',
     }));
 
     return NextResponse.json({ users: formattedUsers });
@@ -67,6 +80,37 @@ export async function POST(request: NextRequest) {
 
     if (!firstName || !lastName || !email || !password || !accessLevel || !tenantId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Validate tenant assignment: State admins can only create users for their own state
+    if (session.user.tenantType !== 'FEDERAL' && tenantId !== session.user.tenantId) {
+      return NextResponse.json({ 
+        error: 'You can only create users for your own state' 
+      }, { status: 403 });
+    }
+
+    // Validate role assignment restrictions
+    const currentUserLevel = session.user.accessLevel;
+  
+    switch (currentUserLevel) {
+      case 'LEVEL_4':
+        // Level 4 can create users up to Level 3 plus Investigators and Prosecutors
+        if (!['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'INVESTIGATOR', 'PROSECUTOR'].includes(accessLevel)) {
+          return NextResponse.json({ error: 'Level 4 admins can only create users up to Level 3, plus Investigators and Prosecutors' }, { status: 403 });
+        }
+        break;
+      case 'LEVEL_5':
+        // Level 5 can create users up to Level 4 plus Investigators and Prosecutors (but not other Level 5)
+        if (!['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4', 'INVESTIGATOR', 'PROSECUTOR'].includes(accessLevel)) {
+          return NextResponse.json({ error: 'Level 5 admins can only create users up to Level 4, plus Investigators and Prosecutors' }, { status: 403 });
+        }
+        break;
+      case 'SUPER_ADMIN':
+      case 'APP_ADMIN':
+        // Admins can create any role
+        break;
+      default:
+        return NextResponse.json({ error: 'You do not have permission to create users' }, { status: 403 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

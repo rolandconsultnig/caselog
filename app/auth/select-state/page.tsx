@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Shield, MapPin, ArrowRight } from 'lucide-react';
+import { MapPin, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
+import { NIGERIAN_STATES } from '@/lib/nigerian-locations';
+import { getStateLogo } from '@/lib/state-logos';
 
 interface Tenant {
   id: string;
@@ -14,12 +16,6 @@ interface Tenant {
   type: string;
 }
 
-const logoMap: { [key: string]: string } = {
-  'Federal Ministry of Justice': '/coat-of-arms.png',
-  'Lagos State': '/coat-of-arms.png',
-  'FCT': '/coat-of-arms.png',
-  'Default': '/coat-of-arms.png',
-};
 
 export default function SelectStatePage() {
   const router = useRouter();
@@ -33,10 +29,43 @@ export default function SelectStatePage() {
     const fetchTenants = async () => {
       try {
         const response = await axios.get('/api/tenants');
-        setTenants(response.data);
+        if (response.data && response.data.length > 0) {
+          setTenants(response.data);
+        } else {
+          // Fallback: Create tenant objects from NIGERIAN_STATES if database is empty
+          console.warn('No tenants found in database, using fallback states');
+          const fallbackTenants: Tenant[] = [
+            {
+              id: 'federal',
+              name: 'Federal Ministry of Justice',
+              type: 'FEDERAL',
+            },
+            ...NIGERIAN_STATES.map((state, index) => ({
+              id: `state-${state.code.toLowerCase()}`,
+              name: state.name,
+              type: 'STATE',
+            })),
+          ];
+          setTenants(fallbackTenants);
+          toast.warning('Using fallback state list. Please seed the database.');
+        }
       } catch (error) {
         console.error('Error fetching tenants:', error);
-        toast.error('Failed to load states');
+        // Fallback: Create tenant objects from NIGERIAN_STATES
+        const fallbackTenants: Tenant[] = [
+          {
+            id: 'federal',
+            name: 'Federal Ministry of Justice',
+            type: 'FEDERAL',
+          },
+          ...NIGERIAN_STATES.map((state) => ({
+            id: `state-${state.code.toLowerCase()}`,
+            name: state.name,
+            type: 'STATE',
+          })),
+        ];
+        setTenants(fallbackTenants);
+        toast.warning('Database connection failed. Using fallback state list.');
       } finally {
         setLoadingTenants(false);
       }
@@ -80,8 +109,14 @@ export default function SelectStatePage() {
       <div className="max-w-md w-full mx-4 mt-20">
         <div className="bg-white rounded-lg shadow-xl p-8">
           <div className="flex flex-col items-center mb-8">
-            <div className="bg-green-600 p-3 rounded-full mb-4">
-              <Shield className="w-8 h-8 text-white" />
+            <div className="bg-green-50 rounded-full p-3 shadow-md w-20 h-20 flex items-center justify-center overflow-hidden mb-4">
+              <Image 
+                src="/coat-of-arms.png" 
+                alt="Nigerian Coat of Arms" 
+                width={64} 
+                height={64}
+                className="object-contain"
+              />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Sexual and Gender-Based Violence Information System</h1>
             <p className="text-xs text-gray-500 mt-2">
@@ -120,11 +155,11 @@ export default function SelectStatePage() {
                   {selectedTenant ? (
                     <div className="flex items-center">
                       <Image
-                        src={logoMap[selectedTenant.name] || logoMap.Default}
+                        src={getStateLogo(selectedTenant.name)}
                         alt={`${selectedTenant.name} logo`}
                         width={24}
                         height={24}
-                        className="mr-3"
+                        className="mr-3 object-contain"
                       />
                       <span>{selectedTenant.name} {selectedTenant.type === 'FEDERAL' ? '(Federal)' : ''}</span>
                     </div>
@@ -152,11 +187,11 @@ export default function SelectStatePage() {
                       >
                         <div className="flex items-center">
                           <Image
-                            src={logoMap[tenant.name] || logoMap.Default}
+                            src={getStateLogo(tenant.name)}
                             alt={`${tenant.name} logo`}
                             width={24}
                             height={24}
-                            className="mr-3"
+                            className="mr-3 object-contain"
                           />
                           <span className="font-normal block truncate">
                             {tenant.name} {tenant.type === 'FEDERAL' ? '(Federal)' : ''}

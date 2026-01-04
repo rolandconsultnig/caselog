@@ -44,7 +44,7 @@ export async function POST(
 
     await prisma.chatMessage.update({
       where: { id: params.messageId },
-      data: { reactions },
+      data: { reactions: reactions as any },
     });
 
     return NextResponse.json({ success: true });

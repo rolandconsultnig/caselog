@@ -69,6 +69,8 @@ export function truncate(str: string, length: number = 50): string {
 
 export async function logAudit(data: {
   userId: string;
+  userName: string;
+  userRole: string;
   action: string;
   entityType: string;
   entityId?: string;
@@ -81,12 +83,15 @@ export async function logAudit(data: {
   return prisma.auditLog.create({
     data: {
       userId: data.userId,
+      userName: data.userName,
+      userRole: data.userRole,
       action: data.action as any,
-      entityType: data.entityType,
+      entityType: data.entityType as any,
       entityId: data.entityId,
       description: data.description,
       caseId: data.caseId,
-      metadata: data.metadata,
+      changesMade: data.metadata,
+      affectedFields: [],
     },
   });
 }

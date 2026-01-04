@@ -4,17 +4,12 @@ import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Shield, ArrowLeft, Building2 } from 'lucide-react';
+import { ArrowLeft, Building2 } from 'lucide-react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getStateLogo } from '@/lib/state-logos';
 
-const logoMap: { [key: string]: string } = {
-  'Federal Ministry of Justice': '/coat-of-arms.png',
-  'Lagos State': '/coat-of-arms.png',
-  'FCT': '/coat-of-arms.png',
-  'Default': '/coat-of-arms.png',
-};
 
 interface Tenant {
   id: string;
@@ -27,7 +22,7 @@ export default function StateLoginPage() {
   const params = useParams();
   const tenantId = params.tenantId as string;
   
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [tenant, setTenant] = useState<Tenant | null>(null);
@@ -69,13 +64,19 @@ export default function StateLoginPage() {
 
     try {
       const result = await signIn('credentials', {
-        email,
+        username,
         password,
+        tenantId: tenantId,
         redirect: false,
       });
 
       if (result?.error) {
-        toast.error('Invalid email or password');
+        // Check if it's a tenant mismatch error
+        if (result.error.includes('Access denied')) {
+          toast.error('Access denied: You can only log in to your assigned state portal');
+        } else {
+          toast.error('Invalid username or password');
+        }
       } else {
         toast.success(`Login successful - ${tenant?.name}`);
         router.push('/dashboard');
@@ -128,13 +129,13 @@ export default function StateLoginPage() {
           <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
             <div className="flex items-center justify-center mb-4">
               {/* Coat of Arms Placeholder */}
-              <div className="bg-white rounded-full p-2 shadow-lg w-24 h-24 flex items-center justify-center">
+              <div className="bg-white rounded-full p-3 shadow-lg w-28 h-28 flex items-center justify-center overflow-hidden">
                 <Image
-                  src={logoMap[tenant.name] || logoMap.Default}
+                  src={getStateLogo(tenant.name)}
                   alt={`${tenant.name} Logo`}
-                  width={80}
-                  height={80}
-                  className="object-contain"
+                  width={88}
+                  height={88}
+                  className="object-contain rounded-full"
                 />
               </div>
             </div>
@@ -162,19 +163,19 @@ export default function StateLoginPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label
-                  htmlFor="email"
+                  htmlFor="username"
                   className="block text-sm font-medium text-gray-700 mb-2"
                 >
-                  Email Address
+                  Username
                 </label>
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="your.email@example.com"
+                  placeholder="Enter your username"
                 />
               </div>
 
@@ -213,40 +214,6 @@ export default function StateLoginPage() {
                 <ArrowLeft className="w-4 h-4 mr-1" />
                 Change State
               </Link>
-            </div>
-
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-md">
-              <p className="text-xs text-gray-600 font-semibold mb-2">
-                Demo Credentials:
-              </p>
-              <div className="space-y-1 text-xs text-gray-600">
-                {isFederal ? (
-                  <>
-                    <p><strong>Email:</strong> federal.level3@moj.gov.ng</p>
-                    <p><strong>Password:</strong> Password123!</p>
-                  </>
-                ) : tenant.name === 'Lagos State' ? (
-                  <>
-                    <p><strong>Email:</strong> lagos.level3@justice.lg.gov.ng</p>
-                    <p><strong>Password:</strong> Password123!</p>
-                  </>
-                ) : tenant.name === 'FCT' ? (
-                  <>
-                    <p><strong>Email:</strong> fct.level3@justice.gov.ng</p>
-                    <p><strong>Password:</strong> Password123!</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-amber-600">
-                      <strong>Note:</strong> Demo users only available for Lagos, FCT, and Federal.
-                    </p>
-                    <p className="text-xs mt-2">
-                      Contact your system administrator for credentials.
-                    </p>
-                  </>
-                )}
-              </div>
             </div>
           </div>
         </div>

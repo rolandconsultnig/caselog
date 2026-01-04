@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
       const caseWhere: any = {
         OR: [
           { caseNumber: { contains: query, mode: 'insensitive' } },
-          { mojFileNumber: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
           { incidentLocation: { contains: query, mode: 'insensitive' } },
         ],
@@ -53,23 +52,22 @@ export async function GET(request: NextRequest) {
       if (filters.state) caseWhere.incidentState = filters.state;
       if (filters.lga) caseWhere.incidentLGA = filters.lga;
       if (filters.dateFrom || filters.dateTo) {
-        caseWhere.dateReported = {};
-        if (filters.dateFrom) caseWhere.dateReported.gte = new Date(filters.dateFrom);
-        if (filters.dateTo) caseWhere.dateReported.lte = new Date(filters.dateTo);
+        caseWhere.reportedDate = {};
+        if (filters.dateFrom) caseWhere.reportedDate.gte = new Date(filters.dateFrom);
+        if (filters.dateTo) caseWhere.reportedDate.lte = new Date(filters.dateTo);
       }
 
       results.cases = await prisma.case.findMany({
         where: caseWhere,
         take: 20,
-        orderBy: { dateReported: 'desc' },
+        orderBy: { reportedDate: 'desc' },
         select: {
           id: true,
           caseNumber: true,
-          mojFileNumber: true,
           caseType: true,
           status: true,
           priority: true,
-          dateReported: true,
+          reportedDate: true,
           incidentLocation: true,
         },
       });
@@ -105,7 +103,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Search suspects
+    // Search perpetrators (suspects)
     if (type === 'all' || type === 'suspects') {
       const suspectWhere: any = {
         OR: [
@@ -114,11 +112,11 @@ export async function GET(request: NextRequest) {
           { middleName: { contains: query, mode: 'insensitive' } },
           { email: { contains: query, mode: 'insensitive' } },
           { phoneNumber: { contains: query, mode: 'insensitive' } },
-          { address: { contains: query, mode: 'insensitive' } },
+          { currentAddress: { contains: query, mode: 'insensitive' } },
         ],
       };
 
-      results.suspects = await prisma.suspect.findMany({
+      results.suspects = await prisma.perpetrator.findMany({
         where: suspectWhere,
         take: 20,
         orderBy: { createdAt: 'desc' },
@@ -148,13 +146,13 @@ export async function GET(request: NextRequest) {
       results.evidence = await prisma.evidence.findMany({
         where: evidenceWhere,
         take: 20,
-        orderBy: { dateCollected: 'desc' },
+        orderBy: { collectedDate: 'desc' },
         select: {
           id: true,
           evidenceNumber: true,
           description: true,
           evidenceType: true,
-          dateCollected: true,
+          collectedDate: true,
           caseId: true,
         },
       });

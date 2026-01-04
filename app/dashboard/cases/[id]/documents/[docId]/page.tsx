@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
-import { Download, Trash2, ArrowLeft, File, Image, Video, FileText } from 'lucide-react';
+import { Download, Trash2, ArrowLeft, File, Image, Video, FileText, Music } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CaseFile {
@@ -112,6 +112,8 @@ export default function DocumentDetailPage() {
       return <Image className="w-12 h-12 text-blue-500" />;
     } else if (document.mimeType?.startsWith('video/')) {
       return <Video className="w-12 h-12 text-purple-500" />;
+    } else if (document.mimeType?.startsWith('audio/')) {
+      return <Music className="w-12 h-12 text-green-500" />;
     } else if (document.mimeType === 'application/pdf') {
       return <FileText className="w-12 h-12 text-red-500" />;
     }
@@ -123,7 +125,7 @@ export default function DocumentDetailPage() {
       case 'PUBLIC': return 'success';
       case 'INTERNAL': return 'info';
       case 'RESTRICTED': return 'warning';
-      case 'CONFIDENTIAL': return 'error';
+      case 'CONFIDENTIAL': return 'danger';
       default: return 'default';
     }
   };
@@ -201,21 +203,39 @@ export default function DocumentDetailPage() {
                   <p className="mt-4 text-gray-600 text-center">
                     {document.mimeType || 'Unknown file type'}
                   </p>
-                  {document.fileUrl && document.mimeType?.startsWith('image/') && (
+                  {document.mimeType?.startsWith('image/') && (
                     <img
-                      src={document.fileUrl}
+                      src={`/api/documents/${params.docId}/view`}
                       alt={document.originalFileName}
                       className="mt-4 max-w-full max-h-96 rounded-lg shadow-lg"
                     />
                   )}
                   {document.mimeType === 'application/pdf' && (
-                    <div className="mt-4">
+                    <div className="mt-4 w-full">
                       <iframe
-                        src={document.fileUrl}
-                        className="w-full h-96 rounded-lg"
+                        src={`/api/documents/${params.docId}/view`}
+                        className="w-full h-[600px] rounded-lg border"
                         title={document.originalFileName}
                       />
                     </div>
+                  )}
+                  {document.mimeType?.startsWith('video/') && (
+                    <video
+                      src={`/api/documents/${params.docId}/view`}
+                      controls
+                      className="mt-4 max-w-full max-h-96 rounded-lg shadow-lg"
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  )}
+                  {document.mimeType?.startsWith('audio/') && (
+                    <audio
+                      src={`/api/documents/${params.docId}/view`}
+                      controls
+                      className="mt-4 w-full"
+                    >
+                      Your browser does not support the audio tag.
+                    </audio>
                   )}
                 </div>
               </div>

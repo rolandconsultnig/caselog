@@ -29,6 +29,21 @@ interface NewsArticle {
 
 export default function NewsManagementPage() {
   const { data: session } = useSession();
+  
+  // Check if user has permission (Nadmin only)
+  if (session?.user?.accessLevel && !['APP_ADMIN', 'SUPER_ADMIN'].includes(session.user.accessLevel)) {
+    return (
+      <DashboardLayout>
+        <div className="p-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Access Denied</h2>
+            <p className="text-red-600">Only Nigerian Admin can access the Content Management module.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+  
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<NewsStatus | 'ALL'>('ALL');

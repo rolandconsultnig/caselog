@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Filter, Save, Clock, X, Eye, FileText, User, Shield, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { NIGERIAN_STATES } from '@/lib/nigerian-states';
+import { NIGERIAN_STATES } from '@/lib/nigerian-locations';
 
 interface SearchResult {
   cases: any[];

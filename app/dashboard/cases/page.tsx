@@ -63,12 +63,19 @@ export default function CasesPage() {
             </p>
           </div>
           {permissions?.canCreate && (
-            <Link href="/dashboard/cases/new">
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Case
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/dashboard/cases/new/simple">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Quick Create Case
+                </Button>
+              </Link>
+              <Link href="/dashboard/cases/new">
+                <Button variant="outline">
+                  Advanced Form
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
 
@@ -141,15 +148,19 @@ export default function CasesPage() {
                           <TableCell className="font-medium">
                             {caseItem.caseNumber}
                           </TableCell>
-                          <TableCell>{caseItem.victim?.name || 'N/A'}</TableCell>
+                          <TableCell>
+                            {caseItem.victims?.[0] 
+                              ? `${caseItem.victims[0].firstName} ${caseItem.victims[0].lastName}`
+                              : 'N/A'}
+                          </TableCell>
                           <TableCell>
                             <span className="text-sm">
-                              {caseItem.formOfSGBV.replace(/_/g, ' ')}
+                              {caseItem.caseType?.replace(/_/g, ' ') || 'N/A'}
                             </span>
                           </TableCell>
                           <TableCell>
                             <Badge className={getCaseStatusColor(caseItem.status)}>
-                              {caseItem.status.replace(/_/g, ' ')}
+                              {caseItem.status?.replace(/_/g, ' ') || 'N/A'}
                             </Badge>
                           </TableCell>
                           {session.user.tenantType === 'FEDERAL' && (

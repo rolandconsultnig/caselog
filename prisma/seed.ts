@@ -84,9 +84,12 @@ async function main() {
   // Create Federal Super Admin
   console.log('Creating Federal Super Admin...');
   await prisma.user.upsert({
-    where: { email: 'federal.superadmin@moj.gov.ng' },
+    where: {
+      username: "federal.superadmin",
+    },
     update: {},
     create: {
+      username: 'federal.superadmin',
       email: 'federal.superadmin@moj.gov.ng',
       password: defaultPassword,
       firstName: 'Federal',
@@ -101,9 +104,10 @@ async function main() {
   // Create Federal App Admin
   console.log('Creating Federal App Admin...');
   await prisma.user.upsert({
-    where: { email: 'federal.appadmin@moj.gov.ng' },
+    where: { username: 'federal.appadmin' },
     update: {},
     create: {
+      username: 'federal.appadmin',
       email: 'federal.appadmin@moj.gov.ng',
       password: defaultPassword,
       firstName: 'Federal',
@@ -128,9 +132,10 @@ async function main() {
   for (let i = 0; i < federalLevels.length; i++) {
     const level = federalLevels[i];
     await prisma.user.upsert({
-      where: { email: `federal.level${i + 1}@moj.gov.ng` },
+      where: { username: `federal.level${i + 1}` },
       update: {},
       create: {
+        username: `federal.level${i + 1}`,
         email: `federal.level${i + 1}@moj.gov.ng`,
         password: defaultPassword,
         firstName: 'Federal',
@@ -150,9 +155,10 @@ async function main() {
   if (lagosState) {
     // Lagos Super Admin
     await prisma.user.upsert({
-      where: { email: 'lagos.superadmin@justice.lg.gov.ng' },
+      where: { username: 'lagos.superadmin' },
       update: {},
       create: {
+        username: 'lagos.superadmin',
         email: 'lagos.superadmin@justice.lg.gov.ng',
         password: defaultPassword,
         firstName: 'Lagos',

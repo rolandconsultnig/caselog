@@ -33,13 +33,18 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   Activity,
+  Loader2,
 } from 'lucide-react';
-import axios from 'axios';
 import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
 import { toast } from 'sonner';
-
-const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6'];
+import { 
+  THEME_COLORS, 
+  REPORT_TYPES, 
+  CASE_STATUS, 
+  APP_CONFIG,
+  EXPORT_FORMATS 
+} from '@/lib/constants';
 
 export default function ReportsPage() {
   const { data: session } = useSession();
@@ -47,154 +52,244 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedTenant, setSelectedTenant] = useState('');
+  const [caseStatus, setCaseStatus] = useState('');
+  const [casePriority, setCasePriority] = useState('');
+  const [sgbvType, setSgbvType] = useState('');
+  const [state, setState] = useState('');
+  const [jurisdiction, setJurisdiction] = useState('');
 
   const permissions = session
     ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
     : null;
 
-  const { data: reportData, isLoading, refetch } = useQuery({
-    queryKey: ['reports', reportType, startDate, endDate, selectedTenant],
+  // Use fetch instead of axios for better compatibility
+  const { data: reportData, isLoading, error, refetch } = useQuery({
+    queryKey: ['reports', reportType, startDate, endDate, selectedTenant, caseStatus, casePriority, sgbvType, state, jurisdiction],
     queryFn: async () => {
       const params = new URLSearchParams({
         type: reportType,
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
         ...(selectedTenant && { tenantId: selectedTenant }),
+        ...(caseStatus && { status: caseStatus }),
+        ...(casePriority && { priority: casePriority }),
+        ...(sgbvType && { sgbvType }),
+        ...(state && { state }),
+        ...(jurisdiction && { jurisdiction }),
       });
-      const response = await axios.get(`/api/reports?${params}`);
-      return response.data;
+      
+      console.log('🔍 Fetching reports data...', params.toString());
+      
+      const response = await fetch(`/api/reports?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
+        throw new Error(`Failed to fetch reports: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Reports data received:', data);
+      return data;
     },
     enabled: !!session && !!permissions?.canGenerateReports,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  if (!session || !permissions?.canGenerateReports) {
-    return (
-      <DashboardLayout>
-        <div className="text-center py-8">
-          <p className="text-red-600">
-            You do not have permission to generate reports
-          </p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   const handleExport = async (format: string) => {
-    if (!reportData) {
+    if (!reportData?.data) {
       toast.error('No report data to export.');
       return;
     }
 
     try {
-      const response = await axios.post(
-        `/api/reports/export/${format}`,
-        {
+      const response = await fetch(`/api/reports/export/${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           reportData: reportData.data,
           reportType: reportType.charAt(0).toUpperCase() + reportType.slice(1),
           filters: { startDate, endDate, selectedTenant },
-        },
-        { responseType: 'blob' }
-      );
+        }),
+      });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      if (!response.ok) {
+        throw new Error('Failed to export report');
+      }
+
+      // Get filename from response headers or create default
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `report-${reportType}-${new Date().toISOString().split('T')[0]}.${format}`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Create download link
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `report.${format}`);
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
+      link.remove();
+      window.URL.revokeObjectURL(url);
 
+      toast.success(`Report exported as ${format.toUpperCase()}`);
     } catch (error) {
-      toast.error(`Failed to export as ${format.toUpperCase()}`);
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
     }
   };
 
+  if (!session || !permissions?.canGenerateReports) {
+    return (
+      <DashboardLayout>
+        <div className="p-6">
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Access Denied</h2>
+              <p className="text-gray-600">You do not have permission to generate reports.</p>
+              <div className="mt-4 p-4 bg-gray-50 rounded">
+                <p><strong>Session:</strong> {session ? 'Active' : 'Not found'}</p>
+                <p><strong>Access Level:</strong> {session?.user.accessLevel || 'N/A'}</p>
+                <p><strong>Tenant Type:</strong> {session?.user.tenantType || 'N/A'}</p>
+                <p><strong>Can Generate Reports:</strong> {permissions?.canGenerateReports ? 'Yes' : 'No'}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="p-6">
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-4 text-red-600">Reports Error</h2>
+              <p className="text-gray-600 mb-4">There was an error loading the reports.</p>
+              <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
+                <p className="text-red-800"><strong>Error:</strong> {(error as Error).message}</p>
+              </div>
+              <Button onClick={() => refetch()} className="mr-2">
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Reload Page
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Generate and analyze SGBV case reports
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handleExport('pdf')}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export PDF
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handleExport('excel')}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Excel
-            </Button>
-          </div>
+      <div className="p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
+          <p className="text-gray-600">Generate comprehensive reports and insights</p>
         </div>
 
         {/* Filters */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Filter className="w-5 h-5 mr-2" />
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="w-5 h-5" />
               Report Filters
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Report Type
                 </label>
                 <select
                   value={reportType}
                   onChange={(e) => setReportType(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="summary">Summary Report</option>
-                  <option value="detailed">Detailed Report</option>
-                  <option value="trends">Trends Analysis</option>
-                  <option value="performance">Performance Metrics</option>
+                  {Object.entries(REPORT_TYPES).map(([key, config]) => (
+                    <option key={key} value={key.toLowerCase()}>
+                      {config.label}
+                    </option>
+                  ))}
                 </select>
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Start Date
                 </label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   End Date
                 </label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
-              <div className="flex items-end">
-                <Button onClick={() => refetch()} className="w-full">
-                  Generate Report
-                </Button>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Case Status
+                </label>
+                <select
+                  value={caseStatus}
+                  onChange={(e) => setCaseStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Statuses</option>
+                  {Object.entries(CASE_STATUS).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </div>
+            
+            <div className="mt-4 flex gap-2">
+              <Button onClick={() => refetch()} disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BarChart3 className="w-4 h-4 mr-2" />}
+                Generate Report
+              </Button>
+              <Button variant="outline" onClick={() => handleExport('excel')} disabled={!reportData?.data}>
+                <Download className="w-4 h-4 mr-2" />
+                Export Excel
+              </Button>
+              <Button variant="outline" onClick={() => handleExport('pdf')} disabled={!reportData?.data}>
+                <Download className="w-4 h-4 mr-2" />
+                Export PDF
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -202,260 +297,110 @@ export default function ReportsPage() {
         {/* Report Content */}
         {isLoading ? (
           <Card>
-            <CardContent className="p-12 text-center">
-              <p className="text-gray-500">Generating report...</p>
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-4" />
+                <p className="text-gray-600">Generating report...</p>
+              </div>
             </CardContent>
           </Card>
-        ) : reportData ? (
-          <>
-            {/* Summary Report */}
+        ) : reportData?.data ? (
+          <div className="space-y-6">
+            {/* Summary Cards */}
             {reportType === 'summary' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Total Cases</p>
-                          <p className="text-3xl font-bold text-gray-900 mt-2">
-                            {reportData.data.totalCases}
-                          </p>
-                        </div>
-                        <FileText className="w-12 h-12 text-blue-600 opacity-20" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center">
+                      <FileText className="w-8 h-8 text-blue-600" />
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-600">Total Cases</p>
+                        <p className="text-2xl font-bold text-gray-900">{reportData.data.totalCases || 0}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Resolution Rate</p>
-                          <p className="text-3xl font-bold text-green-600 mt-2">
-                            {reportData.data.resolutionRate}%
-                          </p>
-                        </div>
-                        <TrendingUp className="w-12 h-12 text-green-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center">
+                      <Activity className="w-8 h-8 text-green-600" />
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-600">Active Cases</p>
+                        <p className="text-2xl font-bold text-gray-900">{reportData.data.activeCases || 0}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Avg Processing</p>
-                          <p className="text-3xl font-bold text-orange-600 mt-2">
-                            {reportData.data.averageProcessingTime}
-                          </p>
-                          <p className="text-xs text-gray-500">days</p>
-                        </div>
-                        <Activity className="w-12 h-12 text-orange-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center">
+                      <TrendingUp className="w-8 h-8 text-yellow-600" />
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+                        <p className="text-2xl font-bold text-gray-900">{reportData.data.pendingApproval || 0}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Report Date</p>
-                          <p className="text-lg font-bold text-gray-900 mt-2">
-                            {new Date(reportData.generatedAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Calendar className="w-12 h-12 text-purple-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center">
+                      <BarChart3 className="w-8 h-8 text-purple-600" />
+                      <div className="ml-4">
+                        <p className="text-sm font-medium text-gray-600">Closed Cases</p>
+                        <p className="text-2xl font-bold text-gray-900">{reportData.data.closedCases || 0}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Charts */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Status Distribution</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={reportData.data.statusBreakdown}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="status" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="_count" fill="#2563eb" name="Cases" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>SGBV Type Distribution</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={reportData.data.typeBreakdown}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={(entry) => entry.formOfSGBV}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="_count"
-                          >
-                            {reportData.data.typeBreakdown.map((entry: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </div>
-              </>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
-            {/* Trends Report */}
-            {reportType === 'trends' && (
+            {/* Charts */}
+            {reportData.data.statusBreakdown && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Case Trends Over Time</CardTitle>
+                  <CardTitle>Cases by Status</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <AreaChart data={reportData.data}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={reportData.data.statusBreakdown}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value }) => `${name}: ${value}`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="count"
+                      >
+                        {reportData.data.statusBreakdown.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={THEME_COLORS.chart[index % THEME_COLORS.chart.length]} />
+                        ))}
+                      </Pie>
                       <Tooltip />
-                      <Legend />
-                      <Area
-                        type="monotone"
-                        dataKey="total"
-                        stroke="#2563eb"
-                        fill="#2563eb"
-                        fillOpacity={0.6}
-                        name="Total Cases"
-                      />
-                    </AreaChart>
+                    </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             )}
-
-            {/* Performance Report */}
-            {reportType === 'performance' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card>
-                    <CardContent className="p-6">
-                      <p className="text-sm font-medium text-gray-600">Approval Rate</p>
-                      <p className="text-3xl font-bold text-green-600 mt-2">
-                        {reportData.data.approvalRate}%
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <p className="text-sm font-medium text-gray-600">Rejection Rate</p>
-                      <p className="text-3xl font-bold text-red-600 mt-2">
-                        {reportData.data.rejectionRate}%
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <p className="text-sm font-medium text-gray-600">Pending Cases</p>
-                      <p className="text-3xl font-bold text-yellow-600 mt-2">
-                        {reportData.data.pendingCases}
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="p-6">
-                      <p className="text-sm font-medium text-gray-600">Avg Approval Time</p>
-                      <p className="text-3xl font-bold text-blue-600 mt-2">
-                        {reportData.data.averageApprovalTime}
-                      </p>
-                      <p className="text-xs text-gray-500">hours</p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart
-                        data={[
-                          { name: 'Approved', value: reportData.data.approvedCases },
-                          { name: 'Rejected', value: reportData.data.rejectedCases },
-                          { name: 'Pending', value: reportData.data.pendingCases },
-                        ]}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="value" fill="#2563eb" name="Cases" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-
-            {/* Detailed Report */}
-            {reportType === 'detailed' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Detailed Case Report ({reportData.totalRecords} cases)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Case Number</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Victim</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Type</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {reportData.data.slice(0, 50).map((caseItem: any) => (
-                          <tr key={caseItem.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm">{caseItem.caseNumber}</td>
-                            <td className="px-4 py-3 text-sm">{caseItem.victim?.name || 'N/A'}</td>
-                            <td className="px-4 py-3 text-sm">{caseItem.formOfSGBV}</td>
-                            <td className="px-4 py-3 text-sm">{caseItem.status}</td>
-                            <td className="px-4 py-3 text-sm">
-                              {new Date(caseItem.createdAt).toLocaleDateString()}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        ) : null}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-12">
+              <div className="text-center">
+                <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Report Data</h3>
+                <p className="text-gray-600">Generate a report to see the results here.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );
 }
-

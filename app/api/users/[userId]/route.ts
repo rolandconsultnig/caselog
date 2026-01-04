@@ -114,9 +114,9 @@ export async function PATCH(
       data: {
         userId: session.user.id,
         action: 'UPDATE_USER',
-        entityType: 'User',
+        entityType: 'USER',
         entityId: userId,
-        details: `Updated user ${user.email}`,
+        description: `Updated user ${user.email}`,
       },
     });
 
@@ -125,6 +125,70 @@ export async function PATCH(
     console.error('Error updating user:', error);
     return NextResponse.json(
       { error: 'Failed to update user' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const permissions = getPermissions(
+      session.user.accessLevel,
+      session.user.tenantType as TenantType
+    );
+
+    if (!permissions.canManageUsers) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const userId = params.userId;
+
+    // Prevent self-deletion
+    if (session.user.id === userId) {
+      return NextResponse.json(
+        { error: 'Cannot delete your own account' },
+        { status: 400 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Soft delete by deactivating instead of hard delete
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+    });
+
+    // Log user deletion
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'DELETE_USER',
+        entityType: 'USER',
+        entityId: userId,
+        description: `Deleted user ${user.email}`,
+      },
+    });
+
+    return NextResponse.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete user' },
       { status: 500 }
     );
   }

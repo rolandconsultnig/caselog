@@ -70,10 +70,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user has permission to create news (Level 3+ or Admin)
-    const allowedLevels = ['LEVEL_3', 'LEVEL_4', 'LEVEL_5', 'APP_ADMIN', 'SUPER_ADMIN'];
+    // Check if user has permission to create news (Nadmin only)
+    const allowedLevels = ['APP_ADMIN', 'SUPER_ADMIN'];
     if (!allowedLevels.includes(session.user.accessLevel)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      return NextResponse.json({ error: 'Only Nigerian Admin can manage content' }, { status: 403 });
     }
 
     const body = await request.json();

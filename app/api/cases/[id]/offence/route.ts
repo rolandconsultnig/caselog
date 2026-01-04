@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const offence = await prisma.caseOffence.findFirst({
+    const offence = await prisma.courtRecord.findFirst({
       where: { caseId: params.id },
     });
 
@@ -52,15 +52,28 @@ export async function POST(
       caseId: params.id,
     };
 
-    // Use upsert to create or update the offence record
-    const offence = await prisma.caseOffence.upsert({
+    // Find existing offence or create new one
+    const existingOffence = await prisma.courtRecord.findFirst({
       where: { caseId: params.id },
-      update: data,
-      create: {
-        ...data,
-        offenceNumber: `OFF-${params.id.substring(0, 8).toUpperCase()}`,
-      },
     });
+
+    const offence = existingOffence
+      ? await prisma.courtRecord.update({
+          where: { id: existingOffence.id },
+          data,
+        })
+      : await prisma.courtRecord.create({
+          data: {
+            ...data,
+            offenceNumber: `OFF${String(Date.now()).slice(-6)}`,
+            offenceName: data.offenceName || 'Offence',
+            law: data.applicableLaw || 'N/A',
+            penalty: data.penalty || 'N/A',
+            evidenceIds: [],
+            witnessIds: [],
+            supportingDocuments: [],
+          },
+        });
 
     return NextResponse.json({ success: true, offence });
   } catch (error) {

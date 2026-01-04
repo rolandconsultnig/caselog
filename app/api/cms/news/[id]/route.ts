@@ -53,10 +53,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check permissions
-    const allowedLevels = ['LEVEL_3', 'LEVEL_4', 'LEVEL_5', 'APP_ADMIN', 'SUPER_ADMIN'];
+    // Check permissions (Nadmin only)
+    const allowedLevels = ['APP_ADMIN', 'SUPER_ADMIN'];
     if (!allowedLevels.includes(session.user.accessLevel)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      return NextResponse.json({ error: 'Only Nigerian Admin can manage content' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -137,10 +137,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check permissions
-    const allowedLevels = ['LEVEL_4', 'LEVEL_5', 'APP_ADMIN', 'SUPER_ADMIN'];
+    // Check permissions (Nadmin only)
+    const allowedLevels = ['APP_ADMIN', 'SUPER_ADMIN'];
     if (!allowedLevels.includes(session.user.accessLevel)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+      return NextResponse.json({ error: 'Only Nigerian Admin can manage content' }, { status: 403 });
     }
 
     const article = await prisma.newsArticle.findUnique({

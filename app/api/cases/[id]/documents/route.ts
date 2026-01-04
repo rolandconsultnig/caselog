@@ -155,7 +155,7 @@ export async function POST(
               { accessLevel: 'PROSECUTOR' },
             ],
           },
-          select: { email: true, name: true },
+          select: { email: true, firstName: true, lastName: true },
         });
 
         const emails = stakeholders.map(s => s.email).filter(Boolean) as string[];

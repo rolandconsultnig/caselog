@@ -41,7 +41,7 @@ export async function GET(
     const fileBuffer = await readFileFromStorage(document.filePath);
 
     // Return file with appropriate headers
-    return new NextResponse(fileBuffer, {
+      return new NextResponse(fileBuffer as any, {
       headers: {
         'Content-Type': document.mimeType,
         'Content-Disposition': `attachment; filename="${document.originalFileName}"`,

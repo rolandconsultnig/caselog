@@ -26,56 +26,11 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const deletionRequest = await prisma.deletionRequest.findUnique({
-      where: { id: params.id },
-      include: { case: true },
-    });
-
-    if (!deletionRequest) {
-      return NextResponse.json(
-        { error: 'Deletion request not found' },
-        { status: 404 }
-      );
-    }
-
-    if (deletionRequest.status !== 'PENDING') {
-      return NextResponse.json(
-        { error: 'Deletion request is not pending' },
-        { status: 400 }
-      );
-    }
-
-    // Approve and delete the case
-    await prisma.$transaction(async (tx) => {
-      // Update deletion request
-      await tx.deletionRequest.update({
-        where: { id: params.id },
-        data: {
-          status: 'APPROVED',
-          approvedById: session.user.id,
-          approvedAt: new Date(),
-        },
-      });
-
-      // Log before deletion
-      await tx.auditLog.create({
-        data: {
-          userId: session.user.id,
-          action: 'DELETE',
-          entityType: 'Case',
-          entityId: deletionRequest.caseId,
-          caseId: deletionRequest.caseId,
-          description: `Approved deletion request and deleted case ${deletionRequest.case.caseNumber}`,
-        },
-      });
-
-      // Delete the case
-      await tx.case.delete({
-        where: { id: deletionRequest.caseId },
-      });
-    });
-
-    return NextResponse.json({ message: 'Deletion request approved and case deleted' });
+    // DeletionRequest model not in schema - returning error
+    return NextResponse.json({ 
+      error: 'DeletionRequest model not implemented',
+      message: 'This feature requires the DeletionRequest model to be added to the schema'
+    }, { status: 501 });
   } catch (error) {
     console.error('Error approving deletion request:', error);
     return NextResponse.json(

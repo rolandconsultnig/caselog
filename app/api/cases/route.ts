@@ -5,7 +5,42 @@ import { prisma } from '@/lib/prisma';
 import { getPermissions, canAccessCase } from '@/lib/permissions';
 import { generateCaseNumber, logAudit } from '@/lib/utils';
 import { caseSchema } from '@/lib/validations';
-import { TenantType } from '@prisma/client';
+import { TenantType, CaseType, CasePriority, CaseStatus, Gender } from '@prisma/client';
+import { generateMOJFileNumber, getStateCodeFromName } from '@/lib/generate-moj-number';
+
+// Map form SGBV types to CaseType enum
+function mapFormOfSGBVToCaseType(formOfSGBV: string | undefined): CaseType {
+  if (!formOfSGBV) return CaseType.OTHER;
+  const mapping: Record<string, CaseType> = {
+    'RAPE': CaseType.SGBV,
+    'SEXUAL_ASSAULT': CaseType.SGBV,
+    'DOMESTIC_VIOLENCE': CaseType.DOMESTIC_VIOLENCE,
+    'TRAFFICKING': CaseType.TRAFFICKING,
+    'CHILD_ABUSE': CaseType.SGBV,
+    'FORCED_MARRIAGE': CaseType.SGBV,
+    'FEMALE_GENITAL_MUTILATION': CaseType.SGBV,
+    'HARMFUL_WIDOWHOOD_PRACTICES': CaseType.SGBV,
+    'EMOTIONAL_ABUSE': CaseType.HARASSMENT,
+    'INCEST': CaseType.SGBV,
+    'SEXTORTION': CaseType.SGBV,
+    'ONLINE_CHILD_SEXUAL_EXPLOITATION': CaseType.SGBV,
+    'INTIMATE_IMAGE_ABUSE': CaseType.SGBV,
+    'OTHER': CaseType.OTHER,
+  };
+  return mapping[formOfSGBV.toUpperCase()] || CaseType.OTHER;
+}
+
+// Map priority string to CasePriority enum
+function mapPriority(priority: string | undefined): CasePriority {
+  if (!priority) return CasePriority.MEDIUM;
+  const upperPriority = priority.toUpperCase();
+  if (upperPriority === 'LOW') return CasePriority.LOW;
+  if (upperPriority === 'MEDIUM') return CasePriority.MEDIUM;
+  if (upperPriority === 'HIGH') return CasePriority.HIGH;
+  if (upperPriority === 'URGENT') return CasePriority.URGENT;
+  if (upperPriority === 'CRITICAL') return CasePriority.CRITICAL;
+  return CasePriority.MEDIUM;
+}
 
 // GET /api/cases - List cases with filtering
 export async function GET(request: NextRequest) {
@@ -113,73 +148,163 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validatedData = caseSchema.parse(body);
+    
+    // Get tenant code and name for case number generation
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: { code: true, name: true },
+    });
+    const tenantCode = tenant?.code || session.user.tenantCode || 'CASE';
+    const tenantName = tenant?.name || session.user.tenantName || '';
 
     // Generate case number
-    const caseNumber = generateCaseNumber(session.user.tenantCode);
+    const caseNumber = generateCaseNumber(tenantCode);
+    
+    // Generate MOJ File Number if not provided or empty
+    let mojFileNumber = body.mojCaseNumber;
+    if (!mojFileNumber || mojFileNumber.trim() === '') {
+      const stateCode = getStateCodeFromName(tenantName);
+      // Get count of cases for this state in current year for sequential number
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+      const caseCount = await prisma.case.count({
+        where: {
+          tenantId: session.user.tenantId,
+          createdAt: {
+            gte: yearStart,
+          },
+        },
+      });
+      mojFileNumber = generateMOJFileNumber(stateCode, caseCount + 1);
+    }
+
+    // Extract and transform form data
+    const victimName = body.victim?.name || body.victim?.firstName || '';
+    const victimNameParts = victimName.split(' ').filter(Boolean);
+    const victimFirstName = victimNameParts[0] || body.victim?.firstName || 'Unknown';
+    const victimLastName = victimNameParts.slice(1).join(' ') || body.victim?.lastName || 'Unknown';
+
+    const perpetratorName = body.perpetrator?.name || body.perpetrator?.firstName || '';
+    const perpetratorNameParts = perpetratorName.split(' ').filter(Boolean);
+    const perpetratorFirstName = perpetratorNameParts[0] || body.perpetrator?.firstName || 'Unknown';
+    const perpetratorLastName = perpetratorNameParts.slice(1).join(' ') || body.perpetrator?.lastName || 'Unknown';
+
+    // Map gender strings to Gender enum
+    const mapGender = (gender: string | undefined): Gender => {
+      if (!gender) return Gender.OTHER;
+      const upperGender = gender.toUpperCase();
+      if (upperGender === 'MALE') return Gender.MALE;
+      if (upperGender === 'FEMALE') return Gender.FEMALE;
+      if (upperGender === 'PREFER_NOT_TO_SAY') return Gender.PREFER_NOT_TO_SAY;
+      return Gender.OTHER;
+    };
+
+    // Ensure age is a number
+    const victimAge = typeof body.victim?.age === 'string' ? parseInt(body.victim.age) || 0 : (body.victim?.age || 0);
+    const perpetratorAge = typeof body.perpetrator?.age === 'string' 
+      ? (body.perpetrator.age ? parseInt(body.perpetrator.age) : null)
+      : (body.perpetrator?.age || null);
+
+    // Helper to convert empty strings to null
+    const nullIfEmpty = (value: any): any => {
+      if (value === '' || value === undefined) return null;
+      return value;
+    };
+
+    // Validate required fields
+    if (!body.title || body.title.trim() === '') {
+      return NextResponse.json({ error: 'Case title is required' }, { status: 400 });
+    }
+    if (!body.description || body.description.trim() === '') {
+      return NextResponse.json({ error: 'Case description is required' }, { status: 400 });
+    }
+    if (!body.incidentState || body.incidentState.trim() === '') {
+      return NextResponse.json({ error: 'Incident state is required' }, { status: 400 });
+    }
+    if (!body.victim?.name && !body.victim?.firstName) {
+      return NextResponse.json({ error: 'Victim name is required' }, { status: 400 });
+    }
+    if (!body.perpetrator?.name && !body.perpetrator?.firstName) {
+      return NextResponse.json({ error: 'Perpetrator name is required' }, { status: 400 });
+    }
+    if (!body.offence?.offenceName && !body.offence?.natureOfOffence) {
+      return NextResponse.json({ error: 'Offence name or nature is required' }, { status: 400 });
+    }
 
     // Create case with all related data
     const newCase = await prisma.case.create({
       data: {
         caseNumber,
+        mojCaseNumber: mojFileNumber,
         tenantId: session.user.tenantId,
-        formOfSGBV: validatedData.formOfSGBV,
-        legalServiceType: validatedData.legalServiceType,
-        dateCharged: validatedData.dateCharged
-          ? new Date(validatedData.dateCharged)
-          : null,
-        chargeNumber: validatedData.chargeNumber,
-        dateFiledInCourt: validatedData.dateFiledInCourt
-          ? new Date(validatedData.dateFiledInCourt)
-          : null,
-        administrativeNumber: validatedData.administrativeNumber,
-        mojCaseNumber: validatedData.mojCaseNumber,
-        dateOfArraignment: validatedData.dateOfArraignment
-          ? new Date(validatedData.dateOfArraignment)
-          : null,
-        bailConditions: validatedData.bailConditions,
-        statusOfCase: validatedData.statusOfCase,
-        status: 'NEW',
+        title: body.title.trim(),
+        description: body.description.trim(),
+        incidentDate: body.incidentDate ? new Date(body.incidentDate) : new Date(),
+        incidentState: body.incidentState.trim(),
+        incidentLga: nullIfEmpty(body.incidentLga || body.incidentLGA),
+        incidentAddress: nullIfEmpty(body.incidentAddress),
+        caseType: mapFormOfSGBVToCaseType(body.formOfSGBV || body.caseType),
+        priority: mapPriority(body.priority),
+        status: session.user.accessLevel === 'LEVEL_2' ? 'PENDING_APPROVAL' as any : 'NEW' as any,
         createdById: session.user.id,
-        victim: {
-          create: {
-            ...validatedData.victim,
-            dateOfBirth: validatedData.victim.dateOfBirth
-              ? new Date(validatedData.victim.dateOfBirth)
+        victims: {
+          create: [{
+            victimNumber: `V${String(Date.now()).slice(-6)}`,
+            firstName: victimFirstName,
+            lastName: victimLastName,
+            middleName: body.victim?.middleName || null,
+            age: victimAge,
+            gender: mapGender(body.victim?.gender),
+            nationality: body.victim?.nationality || 'Nigerian',
+            dateOfBirth: body.victim?.dateOfBirth
+              ? new Date(body.victim.dateOfBirth)
               : null,
-          },
+            phoneNumber: nullIfEmpty(body.victim?.phoneNumber),
+            email: nullIfEmpty(body.victim?.email),
+            currentAddress: nullIfEmpty(body.victim?.address || body.victim?.currentAddress),
+            aliases: Array.isArray(body.victim?.aliases) ? body.victim.aliases : [],
+          }],
         },
-        perpetrator: {
-          create: {
-            ...validatedData.perpetrator,
-            dateOfBirth: validatedData.perpetrator.dateOfBirth
-              ? new Date(validatedData.perpetrator.dateOfBirth)
+        perpetrators: {
+          create: [{
+            perpetratorNumber: `P${String(Date.now()).slice(-6)}`,
+            firstName: perpetratorFirstName,
+            lastName: perpetratorLastName,
+            middleName: body.perpetrator?.middleName || null,
+            age: perpetratorAge,
+            gender: mapGender(body.perpetrator?.gender),
+            nationality: body.perpetrator?.nationality || null,
+            dateOfBirth: body.perpetrator?.dateOfBirth
+              ? new Date(body.perpetrator.dateOfBirth)
               : null,
-          },
+            phoneNumber: nullIfEmpty(body.perpetrator?.phoneNumber),
+            email: nullIfEmpty(body.perpetrator?.email),
+            currentAddress: nullIfEmpty(body.perpetrator?.address || body.perpetrator?.currentAddress),
+            relationshipToVictim: nullIfEmpty(body.perpetrator?.relationshipWithVictim || body.perpetrator?.relationshipToVictim),
+            aliases: Array.isArray(body.perpetrator?.aliases) ? body.perpetrator.aliases : [],
+          }],
         },
-        offence: {
-          create: {
-            ...validatedData.offence,
-            dateOfOffence: validatedData.offence.dateOfOffence
-              ? new Date(validatedData.offence.dateOfOffence)
+        courtRecords: {
+          create: [{
+            offenceNumber: `OFF${String(Date.now()).slice(-6)}`,
+            offenceName: (body.offence?.offenceName || body.offence?.natureOfOffence || 'Offence').trim(),
+            offenceCode: nullIfEmpty(body.offence?.offenceCode) || 'N/A',
+            law: body.offence?.applicableLaw || 'N/A',
+            penalty: body.offence?.penalty || 'N/A',
+            chargeDate: body.offence?.dateOfOffence
+              ? new Date(body.offence.dateOfOffence)
               : null,
-            dateReported: validatedData.offence.dateReported
-              ? new Date(validatedData.offence.dateReported)
-              : null,
-            dateArrested: validatedData.offence.dateArrested
-              ? new Date(validatedData.offence.dateArrested)
-              : null,
-            dateInvestigationStarted: validatedData.offence
-              .dateInvestigationStarted
-              ? new Date(validatedData.offence.dateInvestigationStarted)
-              : null,
-          },
+            trialLocation: nullIfEmpty(body.offence?.placeOfOffence),
+            evidenceIds: [],
+            witnessIds: [],
+            supportingDocuments: [],
+          }],
         },
       },
       include: {
-        victim: true,
-        perpetrator: true,
-        offence: true,
+        victims: true,
+        perpetrators: true,
+        courtRecords: true,
         tenant: true,
       },
     });
@@ -187,21 +312,55 @@ export async function POST(request: NextRequest) {
     // Log audit
     await logAudit({
       userId: session.user.id,
+      userName: session.user.name || session.user.email,
+      userRole: session.user.accessLevel,
       action: 'CREATE',
-      entityType: 'Case',
+      entityType: 'CASE',
       entityId: newCase.id,
       caseId: newCase.id,
       description: `Created case ${caseNumber}`,
     });
 
     return NextResponse.json(newCase, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating case:', error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    
+    // Log detailed error for debugging
+    if (error?.issues) {
+      console.error('Validation errors:', error.issues);
+      return NextResponse.json({ 
+        error: 'Validation failed', 
+        details: error.issues 
+      }, { status: 400 });
     }
+    
+    // Prisma errors
+    if (error?.code) {
+      console.error('Prisma error code:', error.code);
+      if (error.code === 'P2002') {
+        return NextResponse.json({ 
+          error: 'A case with this number already exists',
+          details: error.meta 
+        }, { status: 400 });
+      }
+      if (error.code === 'P2003') {
+        return NextResponse.json({ 
+          error: 'Invalid reference to related record',
+          details: error.meta 
+        }, { status: 400 });
+      }
+    }
+    
+    if (error instanceof Error) {
+      return NextResponse.json({ 
+        error: error.message || 'Failed to create case',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      }, { status: 400 });
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: String(error) },
       { status: 500 }
     );
   }

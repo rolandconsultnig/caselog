@@ -10,6 +10,7 @@ declare module 'next-auth' {
     tenantName: string;
     tenantCode: string;
     tenantType: TenantType;
+    originalTenantId?: string;
   }
 
   interface Session {
@@ -22,6 +23,7 @@ declare module 'next-auth' {
       tenantName: string;
       tenantCode: string;
       tenantType: TenantType;
+      originalTenantId?: string;
     };
   }
 }
@@ -34,6 +36,7 @@ declare module 'next-auth/jwt' {
     tenantName: string;
     tenantCode: string;
     tenantType: TenantType;
+    originalTenantId?: string;
   }
 }
 

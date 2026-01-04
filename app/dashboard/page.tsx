@@ -87,18 +87,20 @@ export default function DashboardPage() {
       }))
     : [];
     
+  const isFederal = session.user.tenantType === 'FEDERAL';
+  
   const stats = [
     {
-      name: 'Total Cases',
+      name: isFederal ? 'National Total Cases' : 'Total Cases',
       value: statistics?.summary?.total || 0,
       icon: FileText,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
       href: '/dashboard/cases',
-      trend: '+5% this month',
+      trend: isFederal ? `Across ${statistics?.federalMetrics?.totalStates || 0} states` : '+5% this month',
     },
     {
-      name: 'Approved Cases',
+      name: isFederal ? 'National Approved Cases' : 'Approved Cases',
       value: statistics?.summary?.approved || 0,
       icon: CheckCircle,
       color: 'text-green-600',
@@ -107,22 +109,22 @@ export default function DashboardPage() {
       trend: `${statistics?.summary?.total > 0 ? ((statistics.summary.approved / statistics.summary.total) * 100).toFixed(1) : 0}% approval rate`,
     },
     {
-      name: 'Pending Approval',
-      value: statistics?.summary?.pending || 0,
-      icon: Clock,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
-      href: '/dashboard/cases',
-      trend: 'Action Required',
+      name: isFederal ? 'States Active' : 'Pending Approval',
+      value: isFederal ? (statistics?.federalMetrics?.activeStates || 0) : (statistics?.summary?.pending || 0),
+      icon: isFederal ? Users : Clock,
+      color: isFederal ? 'text-indigo-600' : 'text-yellow-600',
+      bgColor: isFederal ? 'bg-indigo-100' : 'bg-yellow-100',
+      href: isFederal ? '/dashboard/reports' : '/dashboard/cases',
+      trend: isFederal ? 'Active states' : 'Action Required',
     },
     {
-      name: 'Active Services',
-      value: statistics?.systemMetrics?.services || 0,
-      icon: Shield,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100',
-      href: '/dashboard/services',
-      trend: 'Supporting victims',
+      name: isFederal ? 'Avg Cases/State' : 'Active Services',
+      value: isFederal ? (statistics?.federalMetrics?.averageCasesPerState || 0) : (statistics?.systemMetrics?.services || 0),
+      icon: isFederal ? TrendingUp : Shield,
+      color: isFederal ? 'text-orange-600' : 'text-purple-600',
+      bgColor: isFederal ? 'bg-orange-100' : 'bg-purple-100',
+      href: isFederal ? '/dashboard/reports' : '/dashboard/services',
+      trend: isFederal ? 'National average' : 'Supporting victims',
     },
   ];
 
@@ -143,7 +145,7 @@ export default function DashboardPage() {
             {(['7d', '30d', 'all'] as TimeRange[]).map(range => (
               <Button
                 key={range}
-                variant={timeRange === range ? 'default' : 'outline'}
+                variant={timeRange === range ? 'primary' : 'outline'}
                 onClick={() => setTimeRange(range)}
               >
                 {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : 'All Time'}
@@ -193,7 +195,7 @@ export default function DashboardPage() {
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="value" name="Cases">
-                      {casesByTypeData.map((entry, index) => (
+                      {casesByTypeData.map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -203,41 +205,124 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Side Chart: Priority Distribution */}
+          {/* Side Chart: Federal State Breakdown or Priority Distribution */}
           <Card>
             <CardHeader>
-              <CardTitle>Priority Distribution</CardTitle>
+              <CardTitle>
+                {isFederal ? 'Cases by State' : 'Priority Distribution'}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={priorityData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                {isFederal ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={statistics?.casesByState?.slice(0, 10).map((state: any, index: number) => ({
+                        name: state.tenantCode || state.tenantName?.substring(0, 3) || 'Unknown',
+                        fullName: state.tenantName,
+                        value: state.count,
+                        fill: COLORS[index % COLORS.length],
+                      })) || []}
+                      margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                     >
-                      {priorityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend
-                      align="center"
-                      verticalAlign="bottom"
-                      wrapperStyle={{ lineHeight: '40px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value: any, name: any, props: any) => [
+                          `${value} cases`,
+                          props.payload.fullName || name
+                        ]}
+                      />
+                      <Legend />
+                      <Bar dataKey="value" name="Cases">
+                        {statistics?.casesByState?.slice(0, 10).map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={priorityData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {priorityData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend
+                        align="center"
+                        verticalAlign="bottom"
+                        wrapperStyle={{ lineHeight: '40px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Federal Metrics Section */}
+        {isFederal && statistics?.federalMetrics && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-green-600" />
+                National Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {statistics.federalMetrics.totalStates}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">Total States</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600">
+                    {statistics.federalMetrics.activeStates}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">Active States</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-orange-600">
+                    {statistics.federalMetrics.averageCasesPerState}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">Avg Cases/State</div>
+                </div>
+              </div>
+              
+              {statistics.federalMetrics.topPerformingStates?.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Top Performing States</h4>
+                  <div className="space-y-2">
+                    {statistics.federalMetrics.topPerformingStates.slice(0, 5).map((state: any, index: number) => (
+                      <div key={state.tenantId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
+                          <span className="text-sm font-medium">{state.tenantName}</span>
+                        </div>
+                        <Badge variant="default">{state.count} cases</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Recent Cases */}

@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions, canAccessCase } from '@/lib/permissions';
 import { logAudit } from '@/lib/utils';
-import { TenantType } from '@prisma/client';
+import { TenantType, CaseStatus } from '@prisma/client';
 
 // GET /api/cases/[id] - Get single case
 export async function GET(
@@ -32,6 +32,35 @@ export async function GET(
         tenant: true,
         victims: true,
         perpetrators: true,
+        courtRecords: true,
+        witnesses: true,
+        evidence: true,
+        services: true,
+        civilSocieties: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        coordinator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        investigator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -53,8 +82,10 @@ export async function GET(
     // Log audit
     await logAudit({
       userId: session.user.id,
+      userName: session.user.name || session.user.email,
+      userRole: session.user.accessLevel,
       action: 'READ',
-      entityType: 'Case',
+      entityType: 'CASE',
       entityId: caseData.id,
       caseId: caseData.id,
       description: `Viewed case ${caseData.caseNumber}`,
@@ -105,6 +136,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Check if case is approved and needs Level 4 approval for modification
+    if ((caseData.status === 'APPROVED' || caseData.status === 'ACTIVE') && 
+        session.user.accessLevel !== 'LEVEL_4' && 
+        session.user.accessLevel !== 'SUPER_ADMIN' && 
+        session.user.accessLevel !== 'APP_ADMIN') {
+      return NextResponse.json({ 
+        error: 'Only Level 4 users can modify approved cases' 
+      }, { status: 403 });
+    }
+
     // Only creator or higher levels can update
     if (
       caseData.createdById !== session.user.id &&
@@ -128,8 +169,10 @@ export async function PATCH(
     // Log audit
     await logAudit({
       userId: session.user.id,
+      userName: session.user.name || session.user.email,
+      userRole: session.user.accessLevel,
       action: 'UPDATE',
-      entityType: 'Case',
+      entityType: 'CASE',
       entityId: updatedCase.id,
       caseId: updatedCase.id,
       description: `Updated case ${updatedCase.caseNumber}`,
@@ -188,8 +231,10 @@ export async function DELETE(
     // Log before deletion
     await logAudit({
       userId: session.user.id,
+      userName: session.user.name || session.user.email,
+      userRole: session.user.accessLevel,
       action: 'DELETE',
-      entityType: 'Case',
+      entityType: 'CASE',
       entityId: caseData.id,
       caseId: caseData.id,
       description: `Deleted case ${caseData.caseNumber}`,

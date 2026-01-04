@@ -27,7 +27,11 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const tenantId = searchParams.get('tenantId');
-    const formOfSGBV = searchParams.get('formOfSGBV');
+    const sgbvType = searchParams.get('sgbvType');
+    const status = searchParams.get('status');
+    const priority = searchParams.get('priority');
+    const state = searchParams.get('state');
+    const jurisdiction = searchParams.get('jurisdiction');
 
     // Build where clause
     const where: any = {};
@@ -47,26 +51,45 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // SGBV type filtering
-    if (formOfSGBV) {
-      where.formOfSGBV = formOfSGBV;
+    // Advanced filters
+    if (sgbvType) {
+      where.formOfSGBV = sgbvType;
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (priority) {
+      where.priority = priority;
+    }
+
+    if (state) {
+      where.incidentState = {
+        contains: state,
+        mode: 'insensitive',
+      };
+    }
+
+    if (jurisdiction) {
+      where.jurisdiction = jurisdiction;
     }
 
     switch (reportType) {
       case 'summary':
         return await generateSummaryReport(where);
       
-      case 'detailed':
+      case 'cases':
         return await generateDetailedReport(where);
       
-      case 'trends':
+      case 'analytics':
         return await generateTrendsReport(where);
       
-      case 'performance':
-        return await generatePerformanceReport(where);
+      case 'export':
+        return await generateDetailedReport(where);
       
       default:
-        return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
+        return await generateSummaryReport(where);
     }
   } catch (error) {
     console.error('Error generating report:', error);
@@ -92,7 +115,7 @@ async function generateSummaryReport(where: any) {
       _count: true,
     }),
     prisma.case.groupBy({
-      by: ['formOfSGBV'],
+      by: ['caseType'],
       where,
       _count: true,
     }),
@@ -117,9 +140,9 @@ async function generateDetailedReport(where: any) {
   const cases = await prisma.case.findMany({
     where,
     include: {
-      victim: true,
-      perpetrator: true,
-      offence: true,
+      victims: true,
+      perpetrators: true,
+      courtRecords: true,
       tenant: true,
       createdBy: {
         select: {
@@ -147,7 +170,7 @@ async function generateTrendsReport(where: any) {
     select: {
       createdAt: true,
       status: true,
-      formOfSGBV: true,
+      caseType: true,
     },
     orderBy: { createdAt: 'asc' },
   });
@@ -165,7 +188,7 @@ async function generateTrendsReport(where: any) {
     }
     acc[month].total++;
     acc[month].byStatus[caseItem.status] = (acc[month].byStatus[caseItem.status] || 0) + 1;
-    acc[month].byType[caseItem.formOfSGBV] = (acc[month].byType[caseItem.formOfSGBV] || 0) + 1;
+    acc[month].byType[caseItem.caseType || 'N/A'] = (acc[month].byType[caseItem.caseType || 'N/A'] || 0) + 1;
     return acc;
   }, {});
 
@@ -224,18 +247,18 @@ async function calculateAverageProcessingTime(where: any) {
   const cases = await prisma.case.findMany({
     where: {
       ...where,
-      approvedAt: { not: null },
+      updatedAt: { not: null },
     },
     select: {
       createdAt: true,
-      approvedAt: true,
+      updatedAt: true,
     },
   });
 
   if (cases.length === 0) return 0;
 
   const totalDays = cases.reduce((sum, caseItem) => {
-    const diff = new Date(caseItem.approvedAt!).getTime() - new Date(caseItem.createdAt).getTime();
+    const diff = new Date(caseItem.updatedAt).getTime() - new Date(caseItem.createdAt).getTime();
     return sum + diff / (1000 * 60 * 60 * 24);
   }, 0);
 
@@ -247,18 +270,18 @@ async function calculateAverageApprovalTime(where: any) {
     where: {
       ...where,
       status: 'APPROVED',
-      approvedAt: { not: null },
+      updatedAt: { not: null },
     },
     select: {
       createdAt: true,
-      approvedAt: true,
+      updatedAt: true,
     },
   });
 
   if (cases.length === 0) return 0;
 
   const totalHours = cases.reduce((sum, caseItem) => {
-    const diff = new Date(caseItem.approvedAt!).getTime() - new Date(caseItem.createdAt).getTime();
+    const diff = new Date(caseItem.updatedAt).getTime() - new Date(caseItem.createdAt).getTime();
     return sum + diff / (1000 * 60 * 60);
   }, 0);
 

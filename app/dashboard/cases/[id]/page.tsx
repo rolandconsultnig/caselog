@@ -11,7 +11,7 @@ import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Trash2, ArrowLeft, FileText } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, ArrowLeft, FileText, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -125,9 +125,19 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <p className="text-sm text-gray-600 mt-1">Case Details</p>
             </div>
           </div>
-          <Badge className={getCaseStatusColor(caseData.status)}>
-            {caseData.status.replace(/_/g, ' ')}
-          </Badge>
+          <div className="flex items-center space-x-3">
+            {(permissions?.canCreate || caseData.createdById === session.user.id) && (
+              <Link href={`/dashboard/cases/${params.id}/edit`}>
+                <Button variant="outline" size="sm">
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Case
+                </Button>
+              </Link>
+            )}
+            <Badge className={getCaseStatusColor(caseData.status)}>
+              {caseData.status.replace(/_/g, ' ')}
+            </Badge>
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -263,7 +273,14 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
         {/* Case Overview */}
         <Card>
           <CardHeader>
-            <CardTitle>Case Overview</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Case Overview</CardTitle>
+              <Link href={`/dashboard/cases/${params.id}/overview`}>
+                <Button variant="outline" size="sm">
+                  View Complete Overview
+                </Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -272,7 +289,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                   Form of SGBV
                 </label>
                 <p className="text-base text-gray-900 mt-1">
-                  {caseData.formOfSGBV.replace(/_/g, ' ')}
+                  {caseData.formOfSGBV?.replace(/_/g, ' ') || 'N/A'}
                 </p>
               </div>
               <div>

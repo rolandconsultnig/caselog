@@ -36,3 +36,11 @@ next-env.d.ts
 # Prisma
 prisma/migrations
 
+
+# Local Netlify folder
+.netlify
+
+# Zip files and exports
+*.zip
+database-export/
+export-database.ts

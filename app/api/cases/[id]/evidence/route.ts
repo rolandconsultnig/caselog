@@ -17,8 +17,12 @@ export async function GET(
       where: { caseId: params.id },
       include: {
         chainOfCustody: {
-          orderBy: { transferDate: 'desc' },
-          take: 1, // Latest custody record
+          include: {
+            custodyTransfers: {
+              orderBy: { transferDate: 'desc' },
+              take: 1, // Latest custody transfer
+            },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -27,7 +31,8 @@ export async function GET(
     // Transform the data to include custody status
     const evidenceWithCustody = evidence.map(item => ({
       ...item,
-      chainOfCustody: item.chainOfCustody.length > 0,
+      hasChainOfCustody: item.chainOfCustody !== null,
+      latestTransfer: item.chainOfCustody?.custodyTransfers?.[0] || null,
     }));
 
     return NextResponse.json({ evidence: evidenceWithCustody });
@@ -63,20 +68,23 @@ export async function POST(
         evidenceNumber: `EVD${String(evidenceCount + 1).padStart(3, '0')}`,
         evidenceType: body.evidenceType,
         description: body.description,
-        collectionDate: body.collectionDate ? new Date(body.collectionDate) : new Date(),
-        collectionLocation: body.collectionLocation,
+        collectedDate: body.collectedDate || body.collectionDate ? new Date(body.collectedDate || body.collectionDate) : new Date(),
+        collectedTime: body.collectedTime,
         collectedBy: body.collectedBy,
+        collectedByName: body.collectedByName || session.user.name || '',
+        collectionLocation: body.collectionLocation || body.collectionLocation,
         storageLocation: body.storageLocation,
-        forensicExaminerName: body.forensicExaminerName,
-        forensicExaminerID: body.forensicExaminerID,
-        forensicExaminerAgency: body.forensicExaminerAgency,
-        forensicExaminerContact: body.forensicExaminerContact,
+        storageType: body.storageType || 'SECURE',
+        forensicAnalysisRequired: body.forensicAnalysisRequired || false,
+        forensicAnalysisRequested: body.forensicAnalysisRequested || false,
+        forensicAnalysisDate: body.forensicAnalysisDate ? new Date(body.forensicAnalysisDate) : null,
+        forensicLab: body.forensicLab,
+        forensicAnalystName: body.forensicAnalystName || body.forensicExaminerName,
+        forensicAnalystID: body.forensicAnalystID || body.forensicExaminerID,
+        forensicReportNumber: body.forensicReportNumber,
         forensicReportPath: body.forensicReportPath,
-        forensicAnalysis: body.forensicAnalysis || false,
-        analysisDate: body.analysisDate ? new Date(body.analysisDate) : null,
-        analysisResults: body.analysisResults,
-        chainOfCustody: body.chainOfCustody || false,
-        createdById: session.user.id,
+        currentCustodian: session.user.id,
+        currentCustodianName: session.user.name || '',
       },
     });
 

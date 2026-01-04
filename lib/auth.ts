@@ -9,17 +9,18 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'email' },
+        username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
+        tenantId: { label: 'Tenant ID', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        if (!credentials?.username || !credentials?.password) {
           throw new Error('Invalid credentials');
         }
 
         try {
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+            where: { username: credentials.username },
             include: { tenant: true },
           });
 
@@ -36,6 +37,27 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Invalid credentials');
           }
 
+          // Validate tenant access: User can only log in to their assigned state
+          // Exception: SUPER_ADMIN and APP_ADMIN can access any state
+          const isSuperAdmin = user.accessLevel === 'SUPER_ADMIN' || user.accessLevel === 'APP_ADMIN';
+          const selectedTenantId = credentials.tenantId;
+
+          if (!isSuperAdmin && selectedTenantId && user.tenantId !== selectedTenantId) {
+            throw new Error('Access denied: You can only log in to your assigned state portal');
+          }
+
+          // For super admins, use the selected tenant context instead of their assigned tenant
+          let contextTenant = user.tenant;
+          if (isSuperAdmin && selectedTenantId && selectedTenantId !== user.tenantId) {
+            // Fetch the selected tenant for super admin context
+            const selectedTenant = await prisma.tenant.findUnique({
+              where: { id: selectedTenantId },
+            });
+            if (selectedTenant) {
+              contextTenant = selectedTenant;
+            }
+          }
+
           // Update last login
           try {
             await prisma.user.update({
@@ -47,10 +69,13 @@ export const authOptions: NextAuthOptions = {
             await prisma.auditLog.create({
               data: {
                 userId: user.id,
+                userName: `${user.firstName} ${user.lastName}`,
+                userRole: user.accessLevel,
                 action: 'LOGIN',
-                entityType: 'User',
+                entityType: 'USER',
                 entityId: user.id,
-                details: `User ${user.email} logged in`,
+                description: `User ${user.username} logged in to ${contextTenant.name}`,
+                affectedFields: [],
               },
             });
           } catch (error) {
@@ -60,13 +85,14 @@ export const authOptions: NextAuthOptions = {
 
           return {
             id: user.id,
-            email: user.email,
+            email: user.email || user.username,
             name: `${user.firstName} ${user.lastName}`,
             accessLevel: user.accessLevel,
-            tenantId: user.tenantId,
-            tenantName: user.tenant.name,
-            tenantCode: user.tenant.code,
-            tenantType: user.tenant.type,
+            tenantId: contextTenant.id,
+            tenantName: contextTenant.name,
+            tenantCode: contextTenant.code,
+            tenantType: contextTenant.type,
+            originalTenantId: user.tenantId, // Store original tenant for reference
           };
         } catch (error) {
           console.error('Database error during authentication:', error);
@@ -84,6 +110,7 @@ export const authOptions: NextAuthOptions = {
         token.tenantName = user.tenantName;
         token.tenantCode = user.tenantCode;
         token.tenantType = user.tenantType;
+        token.originalTenantId = user.originalTenantId;
       }
       return token;
     },
@@ -95,6 +122,7 @@ export const authOptions: NextAuthOptions = {
         session.user.tenantName = token.tenantName as string;
         session.user.tenantCode = token.tenantCode as string;
         session.user.tenantType = token.tenantType as string;
+        session.user.originalTenantId = token.originalTenantId as string;
       }
       return session;
     },

@@ -45,21 +45,23 @@ export async function GET(request: NextRequest) {
         perpetrators: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
           },
           take: 5,
         },
         evidence: {
           select: {
             id: true,
-            type: true,
+            evidenceType: true,
           },
           take: 5,
         },
         witnesses: {
           select: {
             id: true,
-            name: true,
+            firstName: true,
+            lastName: true,
           },
           take: 5,
         },

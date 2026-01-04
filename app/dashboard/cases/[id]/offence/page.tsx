@@ -10,8 +10,6 @@ import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { InvestigationStatus } from '@prisma/client';
-
 export default function OffenceDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -27,7 +25,7 @@ export default function OffenceDetailsPage() {
     dateReported: '',
     suspectArrested: false,
     dateArrested: '',
-    investigationStatus: InvestigationStatus.PENDING,
+    investigationStatus: 'OPEN',
     natureOfOffence: '',
     investigatingOfficer: '',
     officerContact: '',
@@ -140,9 +138,11 @@ export default function OffenceDetailsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Investigation Status</label>
                     <select name="investigationStatus" value={formData.investigationStatus} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                      {Object.values(InvestigationStatus).map(status => (
-                        <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
-                      ))}
+                      <option value="OPEN">Open</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="MONITORING">Monitoring</option>
+                      <option value="CLOSED">Closed</option>
+                      <option value="ARCHIVED">Archived</option>
                     </select>
                   </div>
                 </div>

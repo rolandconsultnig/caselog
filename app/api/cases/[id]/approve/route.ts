@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions, canAccessCase } from '@/lib/permissions';
 import { logAudit } from '@/lib/utils';
-import { TenantType } from '@prisma/client';
+import { TenantType, CaseStatus } from '@prisma/client';
 
 // POST /api/cases/[id]/approve - Approve case
 export async function POST(
@@ -22,8 +22,11 @@ export async function POST(
       session.user.tenantType as TenantType
     );
 
-    if (!permissions.canApprove) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Only Level 3 can approve cases
+    if (session.user.accessLevel !== 'LEVEL_3') {
+      return NextResponse.json({ 
+        error: 'Only Level 3 users can approve cases' 
+      }, { status: 403 });
     }
 
     const caseData = await prisma.case.findUnique({
@@ -45,7 +48,7 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (caseData.status !== 'NEW' && caseData.status !== 'INVESTIGATION') {
+    if (caseData.status !== 'PENDING_APPROVAL' as any) {
       return NextResponse.json(
         { error: 'Case is not pending approval' },
         { status: 400 }
@@ -56,8 +59,10 @@ export async function POST(
     const updatedCase = await prisma.case.update({
       where: { id: params.id },
       data: {
-        status: 'ACTIVE',
-      },
+        status: 'APPROVED' as any,
+        approvedBy: session.user.id,
+        approvedAt: new Date(),
+      } as any,
       include: {
         victims: true,
         perpetrators: true,
@@ -67,6 +72,8 @@ export async function POST(
     // Log audit
     await logAudit({
       userId: session.user.id,
+      userName: session.user.name || 'Unknown',
+      userRole: session.user.accessLevel,
       action: 'APPROVE',
       entityType: 'Case',
       entityId: updatedCase.id,

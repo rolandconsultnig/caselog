@@ -1,0 +1,604 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { useQuery } from '@tanstack/react-query';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from 'recharts';
+import {
+  FileText,
+  Download,
+  Calendar,
+  Filter,
+  TrendingUp,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Activity,
+} from 'lucide-react';
+import axios from 'axios';
+import { getPermissions } from '@/lib/permissions';
+import { TenantType } from '@prisma/client';
+import { toast } from 'sonner';
+
+const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+export default function ReportsPage() {
+  const { data: session } = useSession();
+  const [reportType, setReportType] = useState('summary');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedTenant, setSelectedTenant] = useState('');
+  const [caseStatus, setCaseStatus] = useState('');
+  const [casePriority, setCasePriority] = useState('');
+  const [sgbvType, setSgbvType] = useState('');
+  const [state, setState] = useState('');
+  const [jurisdiction, setJurisdiction] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  const permissions = session
+    ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
+    : null;
+
+  const { data: reportData, isLoading, refetch } = useQuery({
+    queryKey: ['reports', reportType, startDate, endDate, selectedTenant, caseStatus, casePriority, sgbvType, state, jurisdiction],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        type: reportType,
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate }),
+        ...(selectedTenant && { tenantId: selectedTenant }),
+        ...(caseStatus && { status: caseStatus }),
+        ...(casePriority && { priority: casePriority }),
+        ...(sgbvType && { sgbvType }),
+        ...(state && { state }),
+        ...(jurisdiction && { jurisdiction }),
+      });
+      const response = await axios.get(`/api/reports?${params}`);
+      return response.data;
+    },
+    enabled: !!session && !!permissions?.canGenerateReports,
+  });
+
+  if (!session || !permissions?.canGenerateReports) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-8">
+          <p className="text-red-600">
+            You do not have permission to generate reports
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const handleExport = async (format: string) => {
+    if (!reportData) {
+      toast.error('No report data to export.');
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `/api/reports/export/${format}`,
+        {
+          reportData: reportData.data,
+          reportType: reportType.charAt(0).toUpperCase() + reportType.slice(1),
+          filters: { startDate, endDate, selectedTenant },
+        },
+        { responseType: 'blob' }
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `report.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+
+    } catch (error) {
+      toast.error(`Failed to export as ${format.toUpperCase()}`);
+    }
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Generate and analyze SGBV case reports
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleExport('pdf')}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleExport('excel')}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Excel
+            </Button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Filter className="w-5 h-5 mr-2" />
+              Report Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Basic Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Report Type
+                  </label>
+                  <select
+                    value={reportType}
+                    onChange={(e) => setReportType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="summary">Summary Report</option>
+                    <option value="detailed">Detailed Report</option>
+                    <option value="trends">Trends Analysis</option>
+                    <option value="performance">Performance Metrics</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <Button onClick={() => refetch()} className="w-full">
+                    Generate Report
+                  </Button>
+                </div>
+              </div>
+
+              {/* Advanced Filters Toggle */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                <button
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center"
+                >
+                  {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
+                  <svg
+                    className={`ml-2 w-4 h-4 transition-transform ${
+                      showAdvancedFilters ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {(caseStatus || casePriority || sgbvType || state || jurisdiction) && (
+                  <button
+                    onClick={() => {
+                      setCaseStatus('');
+                      setCasePriority('');
+                      setSgbvType('');
+                      setState('');
+                      setJurisdiction('');
+                    }}
+                    className="text-sm text-red-600 hover:text-red-800 font-medium"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+
+              {/* Advanced Filters */}
+              {showAdvancedFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 pt-4 border-t border-gray-200">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Case Status
+                    </label>
+                    <select
+                      value={caseStatus}
+                      onChange={(e) => setCaseStatus(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="NEW">New</option>
+                      <option value="UNDER_INVESTIGATION">Under Investigation</option>
+                      <option value="PENDING_APPROVAL">Pending Approval</option>
+                      <option value="APPROVED">Approved</option>
+                      <option value="REJECTED">Rejected</option>
+                      <option value="IN_COURT">In Court</option>
+                      <option value="CLOSED">Closed</option>
+                      <option value="ARCHIVED">Archived</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={casePriority}
+                      onChange={(e) => setCasePriority(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">All Priorities</option>
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="URGENT">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      SGBV Type
+                    </label>
+                    <select
+                      value={sgbvType}
+                      onChange={(e) => setSgbvType(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">All Types</option>
+                      <option value="RAPE">Rape</option>
+                      <option value="SEXUAL_ASSAULT">Sexual Assault</option>
+                      <option value="DOMESTIC_VIOLENCE">Domestic Violence</option>
+                      <option value="CHILD_ABUSE">Child Abuse</option>
+                      <option value="TRAFFICKING">Trafficking</option>
+                      <option value="FGM">FGM</option>
+                      <option value="FORCED_MARRIAGE">Forced Marriage</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      State
+                    </label>
+                    <input
+                      type="text"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      placeholder="Enter state"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Jurisdiction
+                    </label>
+                    <select
+                      value={jurisdiction}
+                      onChange={(e) => setJurisdiction(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">All Jurisdictions</option>
+                      <option value="FEDERAL">Federal</option>
+                      <option value="STATE">State</option>
+                      <option value="LOCAL">Local</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Report Content */}
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-gray-500">Generating report...</p>
+            </CardContent>
+          </Card>
+        ) : reportData ? (
+          <>
+            {/* Summary Report */}
+            {reportType === 'summary' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Total Cases</p>
+                          <p className="text-3xl font-bold text-gray-900 mt-2">
+                            {reportData.data.totalCases}
+                          </p>
+                        </div>
+                        <FileText className="w-12 h-12 text-blue-600 opacity-20" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Resolution Rate</p>
+                          <p className="text-3xl font-bold text-green-600 mt-2">
+                            {reportData.data.resolutionRate}%
+                          </p>
+                        </div>
+                        <TrendingUp className="w-12 h-12 text-green-600 opacity-20" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Avg Processing</p>
+                          <p className="text-3xl font-bold text-orange-600 mt-2">
+                            {reportData.data.averageProcessingTime}
+                          </p>
+                          <p className="text-xs text-gray-500">days</p>
+                        </div>
+                        <Activity className="w-12 h-12 text-orange-600 opacity-20" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Report Date</p>
+                          <p className="text-lg font-bold text-gray-900 mt-2">
+                            {new Date(reportData.generatedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Calendar className="w-12 h-12 text-purple-600 opacity-20" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Status Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={reportData.data.statusBreakdown}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="status" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="_count" fill="#2563eb" name="Cases" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>SGBV Type Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={reportData.data.typeBreakdown}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={(entry) => entry.formOfSGBV}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="_count"
+                          >
+                            {reportData.data.typeBreakdown.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {/* Trends Report */}
+            {reportType === 'trends' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Case Trends Over Time</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <AreaChart data={reportData.data}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#2563eb"
+                        fill="#2563eb"
+                        fillOpacity={0.6}
+                        name="Total Cases"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Performance Report */}
+            {reportType === 'performance' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm font-medium text-gray-600">Approval Rate</p>
+                      <p className="text-3xl font-bold text-green-600 mt-2">
+                        {reportData.data.approvalRate}%
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm font-medium text-gray-600">Rejection Rate</p>
+                      <p className="text-3xl font-bold text-red-600 mt-2">
+                        {reportData.data.rejectionRate}%
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm font-medium text-gray-600">Pending Cases</p>
+                      <p className="text-3xl font-bold text-yellow-600 mt-2">
+                        {reportData.data.pendingCases}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-6">
+                      <p className="text-sm font-medium text-gray-600">Avg Approval Time</p>
+                      <p className="text-3xl font-bold text-blue-600 mt-2">
+                        {reportData.data.averageApprovalTime}
+                      </p>
+                      <p className="text-xs text-gray-500">hours</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Performance Metrics</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={[
+                          { name: 'Approved', value: reportData.data.approvedCases },
+                          { name: 'Rejected', value: reportData.data.rejectedCases },
+                          { name: 'Pending', value: reportData.data.pendingCases },
+                        ]}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="value" fill="#2563eb" name="Cases" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+
+            {/* Detailed Report */}
+            {reportType === 'detailed' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Detailed Case Report ({reportData.totalRecords} cases)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Case Number</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Victim</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {reportData.data.slice(0, 50).map((caseItem: any) => (
+                          <tr key={caseItem.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm">{caseItem.caseNumber}</td>
+                            <td className="px-4 py-3 text-sm">{caseItem.victim?.name || 'N/A'}</td>
+                            <td className="px-4 py-3 text-sm">{caseItem.formOfSGBV}</td>
+                            <td className="px-4 py-3 text-sm">{caseItem.status}</td>
+                            <td className="px-4 py-3 text-sm">
+                              {new Date(caseItem.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        ) : null}
+      </div>
+    </DashboardLayout>
+  );
+}
+

@@ -233,7 +233,7 @@ export function getPermissions(
       };
 
     case AccessLevel.LEVEL_4:
-      // Senior Officer - Can request deletions and advanced case management
+      // Senior Officer - Can request deletions, advanced case management, and user management
       return {
         ...basePermissions,
         canRead: true,
@@ -269,10 +269,18 @@ export function getPermissions(
         canScheduleReports: true,
         canBulkOperations: true,
         canViewAuditLogs: true,
+        // User Management permissions for Level 4
+        canManageUsers: true,
+        canCreateUsers: true,
+        canEditUsers: true,
+        canDeactivateUsers: true,
+        canResetPasswords: true,
+        // Can assign basic roles (Level 1-3)
+        canAssignRoles: true,
       };
 
     case AccessLevel.LEVEL_5:
-      // Director - Full case authority including deletion approval
+      // Director - Full case authority including deletion approval and user management
       return {
         ...basePermissions,
         canRead: true,
@@ -314,6 +322,14 @@ export function getPermissions(
         canManageTemplates: true,
         canViewAuditLogs: true,
         canViewComplianceReports: true,
+        // User Management permissions for Level 5
+        canManageUsers: true,
+        canCreateUsers: true,
+        canEditUsers: true,
+        canDeactivateUsers: true,
+        canResetPasswords: true,
+        // Can assign all roles except admin roles
+        canAssignRoles: true,
       };
 
     case AccessLevel.SUPER_ADMIN:

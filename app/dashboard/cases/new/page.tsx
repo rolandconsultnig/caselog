@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -13,12 +13,15 @@ import axios from 'axios';
 import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
 import { MultiStepForm, FormStep } from '@/components/ui/MultiStepForm';
-import { NIGERIAN_STATES } from '@/lib/nigerian-locations';
+import { NIGERIAN_STATES, getLGAsByState } from '@/lib/nigerian-locations';
+import { generateMOJFileNumber, getStateCodeFromName } from '@/lib/generate-moj-number';
 
 export default function NewCasePage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFederalUser, setIsFederalUser] = useState(false);
+  const [availableLGAs, setAvailableLGAs] = useState<string[]>([]);
 
   const permissions = session
     ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
@@ -135,6 +138,48 @@ export default function NewCasePage() {
     },
   });
 
+  // Auto-populate incident state based on user's tenant
+  useEffect(() => {
+    if (session?.user) {
+      const userTenantName = session.user.tenantName || '';
+      const isFederal = userTenantName.toLowerCase().includes('federal');
+      setIsFederalUser(isFederal);
+      
+      // If not federal user, auto-populate incident state with user's state
+      if (!isFederal && userTenantName) {
+        setFormData(prev => ({
+          ...prev,
+          incidentState: userTenantName
+        }));
+        // Load LGAs for user's state
+        const lgas = getLGAsByState(userTenantName);
+        setAvailableLGAs(lgas);
+      }
+      
+      // Auto-generate MOJ File Number
+      const stateCode = getStateCodeFromName(userTenantName);
+      const mojNumber = generateMOJFileNumber(stateCode);
+      setFormData(prev => ({
+        ...prev,
+        mojCaseNumber: mojNumber
+      }));
+    }
+  }, [session]);
+
+  // Update available LGAs when incident state changes
+  useEffect(() => {
+    if (formData.incidentState) {
+      const lgas = getLGAsByState(formData.incidentState);
+      setAvailableLGAs(lgas);
+      // Reset LGA selection if state changes
+      if (formData.incidentLga && !lgas.includes(formData.incidentLga)) {
+        setFormData(prev => ({ ...prev, incidentLga: '' }));
+      }
+    } else {
+      setAvailableLGAs([]);
+    }
+  }, [formData.incidentState]);
+
   // Step validation functions
   const validateStep0 = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
@@ -188,23 +233,13 @@ export default function NewCasePage() {
   };
 
   const validateStep5 = (): { isValid: boolean; errors: string[] } => {
-    const errors: string[] = [];
-    if (!formData.evidenceStorageLocation.trim()) errors.push('Evidence Storage Location is required');
-    if (!formData.chainOfCustody.transferredFrom.trim()) errors.push('Chain of Custody - Transferred From is required');
-    if (!formData.chainOfCustody.transferredTo.trim()) errors.push('Chain of Custody - Transferred To is required');
-    if (!formData.chainOfCustody.transferDate) errors.push('Chain of Custody - Transfer Date is required');
-    if (!formData.chainOfCustody.purpose.trim()) errors.push('Chain of Custody - Purpose is required');
-    if (!formData.chainOfCustody.receivedBy.trim()) errors.push('Chain of Custody - Received By is required');
-    return { isValid: errors.length === 0, errors };
+    // Evidence and chain of custody are optional
+    return { isValid: true, errors: [] };
   };
 
   const validateStep6 = (): { isValid: boolean; errors: string[] } => {
-    const errors: string[] = [];
-    if (!formData.forensicExaminer.name.trim()) errors.push('Forensic Examiner Name is required');
-    if (!formData.forensicExaminer.id.trim()) errors.push('Forensic Examiner ID is required');
-    if (!formData.forensicExaminer.agency.trim()) errors.push('Forensic Examiner Agency is required');
-    if (!formData.forensicExaminer.contact.trim()) errors.push('Forensic Examiner Contact is required');
-    return { isValid: errors.length === 0, errors };
+    // Forensic examiner details are optional
+    return { isValid: true, errors: [] };
   };
 
   const stepValidators = [
@@ -230,14 +265,92 @@ export default function NewCasePage() {
     setIsSubmitting(true);
 
     try {
-      const response = await axios.post('/api/cases', {
-        ...formData,
-        incidentDate: new Date(formData.incidentDate).toISOString(),
-      });
-      toast.success('Case created successfully');
-      router.push(`/dashboard/cases/${response.data.id}`);
+      // Prepare the data payload
+      const payload = {
+        title: formData.title,
+        description: formData.description,
+        incidentDate: formData.incidentDate ? new Date(formData.incidentDate).toISOString() : new Date().toISOString(),
+        incidentState: formData.incidentState,
+        incidentLga: formData.incidentLga,
+        incidentAddress: formData.incidentAddress,
+        formOfSGBV: formData.formOfSGBV,
+        priority: formData.priority,
+        victim: {
+          name: formData.victim.name,
+          firstName: formData.victim.name?.split(' ')[0] || '',
+          lastName: formData.victim.name?.split(' ').slice(1).join(' ') || '',
+          age: parseInt(formData.victim.age?.toString() || '0'),
+          gender: formData.victim.gender,
+          dateOfBirth: formData.victim.dateOfBirth 
+            ? new Date(formData.victim.dateOfBirth).toISOString() 
+            : null,
+          phoneNumber: formData.victim.phoneNumber || null,
+          email: formData.victim.email || null,
+          address: formData.victim.address || null,
+          nationality: formData.victim.nationality || 'Nigerian',
+          complainantName: formData.victim.complainantName || null,
+          guardianName: formData.victim.guardianName || null,
+          guardianPhoneNumber: formData.victim.guardianPhoneNumber || null,
+          guardianAddress: formData.victim.guardianAddress || null,
+        },
+        perpetrator: {
+          name: formData.perpetrator.name,
+          firstName: formData.perpetrator.name?.split(' ')[0] || '',
+          lastName: formData.perpetrator.name?.split(' ').slice(1).join(' ') || '',
+          age: formData.perpetrator.age ? parseInt(formData.perpetrator.age.toString()) : null,
+          gender: formData.perpetrator.gender,
+          dateOfBirth: formData.perpetrator.dateOfBirth 
+            ? new Date(formData.perpetrator.dateOfBirth).toISOString() 
+            : null,
+          placeOfBirth: formData.perpetrator.placeOfBirth || null,
+          phoneNumber: formData.perpetrator.phoneNumber || null,
+          email: formData.perpetrator.email || null,
+          address: formData.perpetrator.address || null,
+          nationality: formData.perpetrator.nationality || 'Nigerian',
+          relationshipWithVictim: formData.perpetrator.relationshipWithVictim || null,
+          previousCriminalHistory: formData.perpetrator.previousCriminalHistory || null,
+        },
+        offence: {
+          dateOfOffence: formData.offence.dateOfOffence 
+            ? new Date(formData.offence.dateOfOffence).toISOString() 
+            : null,
+          placeOfOffence: formData.offence.placeOfOffence || null,
+          natureOfOffence: formData.offence.natureOfOffence || '',
+          offenceName: formData.offence.offenceName || formData.offence.natureOfOffence || 'Offence',
+          offenceCode: formData.offence.offenceCode || null,
+          applicableLaw: formData.offence.applicableLaw || null,
+          penalty: formData.offence.penalty || null,
+        },
+      };
+
+      const response = await axios.post('/api/cases', payload);
+      
+      if (response.data && response.data.id) {
+        toast.success('Case created successfully');
+        router.push(`/dashboard/cases/${response.data.id}`);
+      } else {
+        toast.error('Case created but no ID returned');
+        router.push('/dashboard/cases');
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create case');
+      console.error('Case creation error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      let errorMessage = 'Failed to create case';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+        if (error.response.data.details) {
+          if (Array.isArray(error.response.data.details)) {
+            errorMessage += ': ' + error.response.data.details.map((d: any) => d.message || d).join(', ');
+          } else if (typeof error.response.data.details === 'string') {
+            errorMessage += ': ' + error.response.data.details;
+          }
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -327,28 +440,63 @@ export default function NewCasePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Incident State *
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.incidentState}
-                  onChange={(e) =>
-                    setFormData({ ...formData, incidentState: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                />
+                {isFederalUser ? (
+                  <select
+                    required
+                    value={formData.incidentState}
+                    onChange={(e) =>
+                      setFormData({ ...formData, incidentState: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Select State</option>
+                    {NIGERIAN_STATES.map((state) => (
+                      <option key={state.code} value={state.name}>
+                        {state.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    required
+                    value={formData.incidentState}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:ring-2 focus:ring-green-500"
+                    title="Auto-populated from your state"
+                  />
+                )}
+                {!isFederalUser && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Auto-populated from your state
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Incident LGA
+                  Incident LGA *
                 </label>
-                <input
-                  type="text"
+                <select
+                  required
                   value={formData.incidentLga}
                   onChange={(e) =>
                     setFormData({ ...formData, incidentLga: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                />
+                  disabled={!formData.incidentState || availableLGAs.length === 0}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select LGA</option>
+                  {availableLGAs.map((lga) => (
+                    <option key={lga} value={lga}>
+                      {lga}
+                    </option>
+                  ))}
+                </select>
+                {!formData.incidentState && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Please select an incident state first
+                  </p>
+                )}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -413,53 +561,18 @@ export default function NewCasePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Services Required
-                </label>
-                <select
-                  value={formData.legalServiceType}
-                  onChange={(e) =>
-                    setFormData({ ...formData, legalServiceType: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="FORENSIC_INTERVIEW">Forensic Interview</option>
-                  <option value="REFERRAL">Referral</option>
-                  <option value="PROSECUTION">Prosecution</option>
-                  <option value="MEDIATION">Mediation</option>
-                  <option value="LEGAL_COUNSELLING">Legal Counselling</option>
-                  <option value="DIVERSION">Diversion</option>
-                </select>
-              </div>
-
-              {formData.legalServiceType === 'PROSECUTION' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Charge Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.chargeNumber}
-                    onChange={(e) =>
-                      setFormData({ ...formData, chargeNumber: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
                   MOJ File Number
                 </label>
                 <input
                   type="text"
                   value={formData.mojCaseNumber}
-                  onChange={(e) =>
-                    setFormData({ ...formData, mojCaseNumber: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:ring-2 focus:ring-green-500"
+                  title="Auto-generated MOJ File Number"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-generated based on state and year
+                </p>
               </div>
             </div>
           </CardContent>
@@ -1152,6 +1265,200 @@ export default function NewCasePage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
                 />
               </div>
+
+              {/* Services Required Section */}
+              <div className="md:col-span-2 mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Services Required</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Legal Service Type *
+                </label>
+                <select
+                  required
+                  value={formData.legalServiceType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, legalServiceType: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="FORENSIC_INTERVIEW">Forensic Interview</option>
+                  <option value="REFERRAL">Referral</option>
+                  <option value="PROSECUTION">Prosecution</option>
+                  <option value="MEDIATION">Mediation</option>
+                  <option value="LEGAL_COUNSELLING">Legal Counselling</option>
+                  <option value="DIVERSION">Diversion</option>
+                </select>
+              </div>
+
+              {formData.legalServiceType === 'PROSECUTION' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Charge Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.chargeNumber}
+                    onChange={(e) =>
+                      setFormData({ ...formData, chargeNumber: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date Charged
+                </label>
+                <input
+                  type="date"
+                  value={formData.dateCharged}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dateCharged: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date Filed in Court
+                </label>
+                <input
+                  type="date"
+                  value={formData.dateFiledInCourt}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dateFiledInCourt: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Administrative Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.administrativeNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, administrativeNumber: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date of Arraignment
+                </label>
+                <input
+                  type="date"
+                  value={formData.dateOfArraignment}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dateOfArraignment: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bail Conditions
+                </label>
+                <textarea
+                  value={formData.bailConditions}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bailConditions: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter bail conditions if applicable..."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status of Case
+                </label>
+                <textarea
+                  value={formData.statusOfCase}
+                  onChange={(e) =>
+                    setFormData({ ...formData, statusOfCase: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Enter current status of the case..."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.suspectReleasedOnBail}
+                    onChange={(e) =>
+                      setFormData({ ...formData, suspectReleasedOnBail: e.target.checked })
+                    }
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Suspect Released on Bail
+                  </span>
+                </label>
+              </div>
+
+              {formData.suspectReleasedOnBail && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Bail Release Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.bailReleaseDate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, bailReleaseDate: e.target.value })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Surety's NIN *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.suretysNIN}
+                      onChange={(e) =>
+                        setFormData({ ...formData, suretysNIN: e.target.value })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Surety's Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.suretysPhoneNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, suretysPhoneNumber: e.target.value })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
           </Card>
@@ -1244,6 +1551,11 @@ export default function NewCasePage() {
             </CardHeader>
             <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2 mb-4">
+                <p className="text-sm text-gray-600">
+                  <strong>Note:</strong> Evidence storage and chain of custody details are optional. You can skip this step if not applicable.
+                </p>
+              </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Evidence Storage Location
@@ -1255,19 +1567,18 @@ export default function NewCasePage() {
                     setFormData({ ...formData, evidenceStorageLocation: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                  placeholder="Enter evidence storage location..."
+                  placeholder="Optional - Enter evidence storage location..."
                 />
               </div>
               <div className="md:col-span-2 border-t pt-6 mt-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Chain of Custody</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Chain of Custody (Optional)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Transferred From *
+                      Transferred From
                     </label>
                     <input
                       type="text"
-                      required
                       value={formData.chainOfCustody.transferredFrom}
                       onChange={(e) =>
                         setFormData({
@@ -1279,15 +1590,15 @@ export default function NewCasePage() {
                         })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Optional"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Transferred To *
+                      Transferred To
                     </label>
                     <input
                       type="text"
-                      required
                       value={formData.chainOfCustody.transferredTo}
                       onChange={(e) =>
                         setFormData({
@@ -1299,15 +1610,15 @@ export default function NewCasePage() {
                         })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Optional"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Transfer Date *
+                      Transfer Date
                     </label>
                     <input
                       type="date"
-                      required
                       value={formData.chainOfCustody.transferDate}
                       onChange={(e) =>
                         setFormData({
@@ -1323,11 +1634,10 @@ export default function NewCasePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Received By *
+                      Received By
                     </label>
                     <input
                       type="text"
-                      required
                       value={formData.chainOfCustody.receivedBy}
                       onChange={(e) =>
                         setFormData({
@@ -1343,10 +1653,9 @@ export default function NewCasePage() {
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Purpose *
+                      Purpose
                     </label>
                     <textarea
-                      required
                       value={formData.chainOfCustody.purpose}
                       onChange={(e) =>
                         setFormData({
@@ -1359,6 +1668,7 @@ export default function NewCasePage() {
                       }
                       rows={2}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Optional"
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -1412,6 +1722,11 @@ export default function NewCasePage() {
             </CardHeader>
             <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2 mb-4">
+                <p className="text-sm text-gray-600">
+                  <strong>Note:</strong> Forensic examiner details are optional. You can skip this step if not applicable.
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Examiner Name
@@ -1429,6 +1744,7 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Optional"
                 />
               </div>
               <div>
@@ -1448,6 +1764,7 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Optional"
                 />
               </div>
               <div>
@@ -1467,6 +1784,7 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Optional"
                 />
               </div>
               <div>
@@ -1486,6 +1804,7 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="Optional"
                 />
               </div>
             </div>

@@ -49,7 +49,7 @@ export async function POST(
       where: { id: params.messageId },
       data: {
         readBy,
-        readReceipts,
+        readReceipts: readReceipts as any,
       },
     });
 

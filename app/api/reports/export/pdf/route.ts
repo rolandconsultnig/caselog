@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
 
     if (reportType === 'Detailed') {
       const tableColumn = ["Case Number", "Victim", "Type", "Status", "Date"];
-      const tableRows = [];
+      const tableRows: any[] = [];
 
-      reportData.forEach(item => {
+      reportData.forEach((item: any) => {
         const row = [
           item.caseNumber,
-          item.victim?.name || 'N/A',
-          item.formOfSGBV,
+          item.victims?.[0] ? `${item.victims[0].firstName} ${item.victims[0].lastName}` : 'N/A',
+          item.caseType || 'N/A',
           item.status,
           new Date(item.createdAt).toLocaleDateString(),
         ];

@@ -104,9 +104,8 @@ function exportCasePDF(caseData: any) {
     body: caseInfo,
     startY: yPos,
     theme: 'grid',
-    head: false,
     styles: { fontSize: 9 },
-  });
+  } as any);
 
   yPos = (doc as any).lastAutoTable.finalY + 15;
 
@@ -243,7 +242,7 @@ function exportCaseCSV(caseData: any) {
     ]),
   ];
 
-  const csv = rows.map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n');
+  const csv = rows.map((row) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n');
 
   return new NextResponse(csv, {
     headers: {
@@ -326,7 +325,7 @@ function exportCasesCSV(cases: any[]) {
     ]),
   ];
 
-  const csv = rows.map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n');
+  const csv = rows.map((row) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n');
 
   return new NextResponse(csv, {
     headers: {
