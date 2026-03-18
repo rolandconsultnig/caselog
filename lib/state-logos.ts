@@ -3,7 +3,7 @@
 
 export const STATE_LOGOS: { [key: string]: string } = {
   // Federal
-  'Federal Ministry of Justice': '/state-logos/Fagbemi.jpeg',
+  'Federal Ministry of Justice': '/state-logos/MoJ_logo.jpeg',
   'Federal Capital Territory': '/state-logos/FCT.jpg',
   'FCT': '/state-logos/FCT.jpg',
   
