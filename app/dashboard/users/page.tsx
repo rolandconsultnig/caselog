@@ -75,7 +75,7 @@ export default function UsersPage() {
       setLoading(true);
       const response = await axios.get('/api/users');
       setUsers(response.data.users || []);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
@@ -115,7 +115,7 @@ export default function UsersPage() {
       });
       toast.success(`User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
       fetchUsers();
-    } catch (error) {
+    } catch {
       toast.error('Failed to update user status');
     }
   };
@@ -129,7 +129,7 @@ export default function UsersPage() {
       await axios.delete(`/api/users/${userId}`);
       toast.success('User deleted successfully');
       fetchUsers();
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete user');
     }
   };
@@ -159,7 +159,7 @@ export default function UsersPage() {
       toast.success(`${selectedUsers.length} user(s) ${action}d successfully`);
       setSelectedUsers([]);
       fetchUsers();
-    } catch (error) {
+    } catch {
       toast.error(`Failed to ${action} users`);
     }
   };
@@ -290,7 +290,7 @@ export default function UsersPage() {
                     </label>
                     <select
                       value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                      onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="all">All Status</option>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { CaseStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -32,7 +32,7 @@ export async function POST(
       return NextResponse.json({ error: 'Case not found' }, { status: 404 });
     }
 
-    if (existingCase.status !== 'APPROVED' as any && existingCase.status !== 'ACTIVE' as any) {
+    if (existingCase.status !== 'APPROVED' && existingCase.status !== 'ACTIVE') {
       return NextResponse.json({ 
         error: 'Case must be approved and active to approve modifications' 
       }, { status: 400 });
@@ -44,7 +44,7 @@ export async function POST(
       data: {
         modificationApprovedBy: session.user.id,
         modificationApprovedAt: new Date(),
-      } as any,
+      } as Prisma.CaseUpdateInput,
     });
 
     // Create audit log
@@ -53,7 +53,7 @@ export async function POST(
         userId: session.user.id,
         userName: session.user.name,
         userRole: session.user.accessLevel,
-        action: 'APPROVE_MODIFICATION' as any,
+        action: 'APPROVE_MODIFICATION',
         entityType: 'CASE',
         entityId: caseId,
         entityName: `Modification approved for case ${existingCase.caseNumber}`,

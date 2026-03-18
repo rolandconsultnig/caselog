@@ -6,6 +6,7 @@ import { processFacialRecognition, searchMatchingFaces } from '@/lib/facial-reco
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -71,7 +72,7 @@ export async function POST(
       data: {
         photographPath: publicPath,
         photographUploadDate: new Date(),
-        facialRecognitionData: facialData as any,
+        facialRecognitionData: facialData as unknown as Prisma.InputJsonValue,
         facialRecognitionId: facialData.facialRecognitionId,
         biometricVerified: facialData.confidence > 0.9,
         biometricVerifiedDate: new Date(),

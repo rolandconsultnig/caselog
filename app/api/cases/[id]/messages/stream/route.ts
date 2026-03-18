@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
 
 // Server-Sent Events for real-time messaging
 export async function GET(
@@ -26,7 +27,7 @@ export async function GET(
         let lastMessageId: string | null = null;
         const interval = setInterval(async () => {
           try {
-            const where: any = { caseId: params.id, isDeleted: false };
+            const where: Prisma.ChatMessageWhereInput = { caseId: params.id, isDeleted: false };
             if (lastMessageId) {
               where.id = { gt: lastMessageId };
             }

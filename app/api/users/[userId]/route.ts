@@ -17,6 +17,15 @@ export async function GET(
 
     const userId = params.userId;
 
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     // Users can view their own profile, or admins can view any profile
     if (session.user.id !== userId) {
       const permissions = getPermissions(
@@ -24,6 +33,14 @@ export async function GET(
         session.user.tenantType as TenantType
       );
       if (!permissions.canManageUsers) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      if (session.user.tenantType !== 'FEDERAL' && targetUser.tenantId !== session.user.tenantId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    } else {
+      if (session.user.tenantType !== 'FEDERAL' && targetUser.tenantId !== session.user.tenantId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
@@ -86,10 +103,24 @@ export async function PATCH(
     }
 
     const userId = params.userId;
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tenantId: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (session.user.tenantType !== 'FEDERAL' && targetUser.tenantId !== session.user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { firstName, lastName, phoneNumber, accessLevel, isActive } = body;
 
-    const updateData: any = {};
+    const updateData: Parameters<typeof prisma.user.update>[0]['data'] = {};
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
     if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
@@ -113,7 +144,9 @@ export async function PATCH(
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
-        action: 'UPDATE_USER',
+        userName: session.user.name || session.user.email,
+        userRole: session.user.accessLevel,
+        action: 'UPDATE',
         entityType: 'USER',
         entityId: userId,
         description: `Updated user ${user.email}`,
@@ -167,6 +200,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    if (session.user.tenantType !== 'FEDERAL' && user.tenantId !== session.user.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Soft delete by deactivating instead of hard delete
     await prisma.user.update({
       where: { id: userId },
@@ -177,7 +214,9 @@ export async function DELETE(
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
-        action: 'DELETE_USER',
+        userName: session.user.name || session.user.email,
+        userRole: session.user.accessLevel,
+        action: 'DELETE',
         entityType: 'USER',
         entityId: userId,
         description: `Deleted user ${user.email}`,

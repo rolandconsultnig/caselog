@@ -12,8 +12,6 @@ import {
   Scale,
   CheckCircle,
   Clock,
-  AlertCircle,
-  DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 import axios from 'axios';
@@ -38,7 +36,7 @@ interface ProsecutionCase {
 }
 
 export default function ProsecutorDashboard() {
-  const { data: session } = useSession();
+  useSession();
   const [prosecutionCases, setProsecutionCases] = useState<ProsecutionCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -63,11 +61,11 @@ export default function ProsecutorDashboard() {
       
       setStats({
         totalCases: cases.length,
-        scheduledTrials: allRecords.filter((r: any) => r.trialDate && !r.verdictReached).length,
-        pleaBargains: allRecords.filter((r: any) => r.pleaBargain).length,
-        convictions: allRecords.filter((r: any) => r.verdict === 'GUILTY').length,
+        scheduledTrials: allRecords.filter((r) => r.trialDate && !r.verdictReached).length,
+        pleaBargains: allRecords.filter((r) => r.pleaBargain).length,
+        convictions: allRecords.filter((r) => r.verdict === 'GUILTY').length,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching prosecutor data:', error);
       toast.error('Failed to load prosecution cases');
     } finally {

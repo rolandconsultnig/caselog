@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface ChainOfCustody {
   id: string;
@@ -26,16 +26,11 @@ interface ChainOfCustody {
 export default function CaseCustodyPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
   const [custodyRecords, setCustodyRecords] = useState<ChainOfCustody[]>([]);
   const [loading, setLoading] = useState(true);
   const evidenceId = searchParams?.get('evidenceId');
 
-  useEffect(() => {
-    fetchCustodyRecords();
-  }, [params.id, evidenceId]);
-
-  const fetchCustodyRecords = async () => {
+  const fetchCustodyRecords = useCallback(async () => {
     try {
       const url = evidenceId
         ? `/api/cases/${params.id}/custody?evidenceId=${evidenceId}`
@@ -51,15 +46,19 @@ export default function CaseCustodyPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [evidenceId, params.id]);
+
+  useEffect(() => {
+    fetchCustodyRecords();
+  }, [fetchCustodyRecords]);
 
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case 'EXCELLENT': return 'success';
       case 'GOOD': return 'info';
       case 'FAIR': return 'warning';
-      case 'POOR': return 'error';
-      case 'DAMAGED': return 'error';
+      case 'POOR': return 'danger';
+      case 'DAMAGED': return 'danger';
       default: return 'default';
     }
   };
@@ -195,10 +194,12 @@ export default function CaseCustodyPage() {
                             <div className="mt-3 p-2 bg-gray-50 rounded">
                               <span className="text-xs text-gray-500">Signature:</span>
                               <div className="mt-1">
-                                <img
+                                <Image
                                   src={record.receivedBySignature}
                                   alt="Signature"
-                                  className="h-8 border border-gray-300 rounded"
+                                  width={240}
+                                  height={64}
+                                  className="h-8 w-auto border border-gray-300 rounded"
                                 />
                               </div>
                             </div>

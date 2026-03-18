@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const charges = await prisma.caseOffence.findMany({
+    const charges = await prisma.courtRecord.findMany({
       where: { caseId: params.id },
       orderBy: { createdAt: 'desc' },
     });
@@ -40,33 +40,26 @@ export async function POST(
 
     const body = await request.json();
 
-    const charge = await prisma.caseOffence.create({
+    const charge = await prisma.courtRecord.create({
       data: {
         caseId: params.id,
+        offenceNumber: `OFF${String(Date.now()).slice(-6)}`,
         offenceName: body.offenceName,
-        offenceCode: body.offenceCode,
-        applicableLaw: body.applicableLaw,
-        penalty: body.penalty,
-        dateOfOffence: body.dateOfOffence ? new Date(body.dateOfOffence) : null,
-        placeOfOffence: body.placeOfOffence,
+        offenceCode: body.offenceCode || null,
+        law: body.applicableLaw || 'N/A',
+        penalty: body.penalty || 'N/A',
+        chargeDate: body.dateOfOffence ? new Date(body.dateOfOffence) : null,
+        trialLocation: body.placeOfOffence || null,
         pleaType: body.pleaType,
         pleaDate: body.pleaDate ? new Date(body.pleaDate) : null,
-        pleaDetails: body.pleaDetails,
-        verdictType: body.verdictType,
+        pleaBargainDetails: body.pleaDetails,
+        verdict: body.verdictType,
         verdictDate: body.verdictDate ? new Date(body.verdictDate) : null,
         verdictDetails: body.verdictDetails,
         sentenceType: body.sentenceType,
         sentenceDetails: body.sentenceDetails,
-        courtDate: body.courtDate ? new Date(body.courtDate) : null,
-        courtLocation: body.courtLocation,
-        judgeName: body.judgeName,
-        prosecutorName: body.prosecutorName,
-        defenseAttorneyName: body.defenseAttorneyName,
-        trialStatus: body.trialStatus,
-        appealFiled: body.appealFiled || false,
-        appealDate: body.appealDate ? new Date(body.appealDate) : null,
-        appealOutcome: body.appealOutcome,
-        createdById: session.user.id,
+        trialDate: body.courtDate ? new Date(body.courtDate) : null,
+        notes: body.appealOutcome || null,
       },
     });
 
@@ -77,7 +70,7 @@ export async function POST(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'CASE_OFFENCE',
+        entityType: 'CASE',
         entityId: charge.id,
         entityName: `Legal charge added to case ${params.id}`,
       },

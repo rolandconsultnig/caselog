@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { CasePriority, CaseStatus, CaseType, Prisma } from '@prisma/client';
+
+type SearchFilters = {
+  status: string | null;
+  priority: string | null;
+  caseType: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  state: string | null;
+  lga: string | null;
+};
+
+type SearchResults = {
+  cases: unknown[];
+  victims: unknown[];
+  suspects: unknown[];
+  evidence: unknown[];
+  documents: unknown[];
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +32,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || '';
     const type = searchParams.get('type') || 'all'; // all, cases, victims, suspects, evidence
-    const filters = {
+    const tenantId = searchParams.get('tenantId');
+    const filters: SearchFilters = {
       status: searchParams.get('status'),
       priority: searchParams.get('priority'),
       caseType: searchParams.get('caseType'),
@@ -27,7 +47,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ results: [] });
     }
 
-    const results: any = {
+    const results: SearchResults = {
       cases: [],
       victims: [],
       suspects: [],
@@ -35,26 +55,38 @@ export async function GET(request: NextRequest) {
       documents: [],
     };
 
+    const scopeTenantId = session.user.tenantType !== 'FEDERAL' ? session.user.tenantId : tenantId;
+
     // Search cases
     if (type === 'all' || type === 'cases') {
-      const caseWhere: any = {
+      const caseWhere: Prisma.CaseWhereInput = {
         OR: [
           { caseNumber: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
-          { incidentLocation: { contains: query, mode: 'insensitive' } },
         ],
       };
 
+      if (scopeTenantId) {
+        caseWhere.tenantId = scopeTenantId;
+      }
+
       // Apply filters
-      if (filters.status) caseWhere.status = filters.status;
-      if (filters.priority) caseWhere.priority = filters.priority;
-      if (filters.caseType) caseWhere.caseType = filters.caseType;
+      if (filters.status && Object.values(CaseStatus).includes(filters.status as CaseStatus)) {
+        caseWhere.status = filters.status as CaseStatus;
+      }
+      if (filters.priority && Object.values(CasePriority).includes(filters.priority as CasePriority)) {
+        caseWhere.priority = filters.priority as CasePriority;
+      }
+      if (filters.caseType && Object.values(CaseType).includes(filters.caseType as CaseType)) {
+        caseWhere.caseType = filters.caseType as CaseType;
+      }
       if (filters.state) caseWhere.incidentState = filters.state;
-      if (filters.lga) caseWhere.incidentLGA = filters.lga;
+      if (filters.lga) caseWhere.incidentLga = filters.lga;
       if (filters.dateFrom || filters.dateTo) {
-        caseWhere.reportedDate = {};
-        if (filters.dateFrom) caseWhere.reportedDate.gte = new Date(filters.dateFrom);
-        if (filters.dateTo) caseWhere.reportedDate.lte = new Date(filters.dateTo);
+        const reportedDate: Prisma.DateTimeFilter = {};
+        if (filters.dateFrom) reportedDate.gte = new Date(filters.dateFrom);
+        if (filters.dateTo) reportedDate.lte = new Date(filters.dateTo);
+        caseWhere.reportedDate = reportedDate;
       }
 
       results.cases = await prisma.case.findMany({
@@ -75,16 +107,21 @@ export async function GET(request: NextRequest) {
 
     // Search victims
     if (type === 'all' || type === 'victims') {
-      const victimWhere: any = {
+      const victimWhere: Prisma.VictimWhereInput = {
         OR: [
           { firstName: { contains: query, mode: 'insensitive' } },
           { lastName: { contains: query, mode: 'insensitive' } },
           { middleName: { contains: query, mode: 'insensitive' } },
           { email: { contains: query, mode: 'insensitive' } },
           { phoneNumber: { contains: query, mode: 'insensitive' } },
-          { address: { contains: query, mode: 'insensitive' } },
+          { currentAddress: { contains: query, mode: 'insensitive' } },
+          { permanentAddress: { contains: query, mode: 'insensitive' } },
         ],
       };
+
+      if (scopeTenantId) {
+        victimWhere.case = { tenantId: scopeTenantId };
+      }
 
       results.victims = await prisma.victim.findMany({
         where: victimWhere,
@@ -105,7 +142,7 @@ export async function GET(request: NextRequest) {
 
     // Search perpetrators (suspects)
     if (type === 'all' || type === 'suspects') {
-      const suspectWhere: any = {
+      const suspectWhere: Prisma.PerpetratorWhereInput = {
         OR: [
           { firstName: { contains: query, mode: 'insensitive' } },
           { lastName: { contains: query, mode: 'insensitive' } },
@@ -115,6 +152,10 @@ export async function GET(request: NextRequest) {
           { currentAddress: { contains: query, mode: 'insensitive' } },
         ],
       };
+
+      if (scopeTenantId) {
+        suspectWhere.case = { tenantId: scopeTenantId };
+      }
 
       results.suspects = await prisma.perpetrator.findMany({
         where: suspectWhere,
@@ -135,13 +176,17 @@ export async function GET(request: NextRequest) {
 
     // Search evidence
     if (type === 'all' || type === 'evidence') {
-      const evidenceWhere: any = {
+      const evidenceWhere: Prisma.EvidenceWhereInput = {
         OR: [
           { evidenceNumber: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
-          { locationFound: { contains: query, mode: 'insensitive' } },
+          { collectionLocation: { contains: query, mode: 'insensitive' } },
         ],
       };
+
+      if (scopeTenantId) {
+        evidenceWhere.case = { tenantId: scopeTenantId };
+      }
 
       results.evidence = await prisma.evidence.findMany({
         where: evidenceWhere,
@@ -160,13 +205,17 @@ export async function GET(request: NextRequest) {
 
     // Search documents
     if (type === 'all' || type === 'documents') {
-      const documentWhere: any = {
+      const documentWhere: Prisma.CaseFileWhereInput = {
         OR: [
           { originalFileName: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
           { category: { contains: query, mode: 'insensitive' } },
         ],
       };
+
+      if (scopeTenantId) {
+        documentWhere.case = { tenantId: scopeTenantId };
+      }
 
       results.documents = await prisma.caseFile.findMany({
         where: documentWhere,
@@ -185,13 +234,18 @@ export async function GET(request: NextRequest) {
 
     // Save search history
     if (query.trim()) {
+      const resultCount = Object.values(results).reduce((sum, arr) => {
+        if (!Array.isArray(arr)) return sum;
+        return sum + arr.length;
+      }, 0);
+
       await prisma.searchHistory.create({
         data: {
           userId: session.user.id,
           searchQuery: query,
           searchType: type,
-          filters: filters as any,
-          resultCount: Object.values(results).reduce((sum: number, arr: any) => sum + arr.length, 0),
+          filters: filters as Prisma.InputJsonValue,
+          resultCount,
         },
       });
     }

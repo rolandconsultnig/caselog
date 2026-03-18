@@ -97,6 +97,8 @@ export async function getNextSequentialNumber(
   stateCode: string,
   currentYear: number
 ): Promise<number> {
+  void stateCode;
+  void currentYear;
   // This is a placeholder - actual implementation should query the database
   // to get the count of cases for this state in the current year
   // For now, return a random number (will be implemented in API)

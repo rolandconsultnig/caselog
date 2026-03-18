@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -25,16 +24,10 @@ interface CaseCivilSociety {
 
 export default function CaseNGOPage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
   const [ngoPartnerships, setNgoPartnerships] = useState<CaseCivilSociety[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchNGOPartnerships();
-  }, [params.id]);
-
-  const fetchNGOPartnerships = async () => {
+  const fetchNGOPartnerships = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/ngo`);
       if (response.ok) {
@@ -46,21 +39,25 @@ export default function CaseNGOPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchNGOPartnerships();
+  }, [fetchNGOPartnerships]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE': return 'success';
       case 'PENDING': return 'warning';
       case 'COMPLETED': return 'info';
-      case 'TERMINATED': return 'error';
+      case 'TERMINATED': return 'danger';
       default: return 'default';
     }
   };
 
   const getFrequencyColor = (frequency: string) => {
     switch (frequency) {
-      case 'DAILY': return 'error';
+      case 'DAILY': return 'danger';
       case 'WEEKLY': return 'warning';
       case 'MONTHLY': return 'info';
       case 'QUARTERLY': return 'default';

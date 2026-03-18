@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ArrowLeft, Save, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { NIGERIAN_STATES, NIGERIAN_LGAS, getLGAsByState } from '@/lib/nigerian-locations';
+import { NIGERIAN_STATES, getLGAsByState } from '@/lib/nigerian-locations';
 import offencesData from '@/lib/offences-reference.json';
 
 export default function SimpleNewCasePage() {
@@ -84,9 +84,9 @@ export default function SimpleNewCasePage() {
         setFormData(prev => ({ ...prev, incidentLga: '' }));
       }
     }
-  }, [formData.incidentState]);
+  }, [formData.incidentState, userState]);
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: string, value: unknown) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -197,12 +197,15 @@ export default function SimpleNewCasePage() {
         toast.success('Case created successfully!');
         router.push('/dashboard/cases');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Case creation error:', error);
       
       let errorMessage = 'Failed to create case';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+      if (axios.isAxiosError(error)) {
+        const apiMessage = (error.response?.data as { error?: string } | undefined)?.error;
+        if (apiMessage) {
+          errorMessage = apiMessage;
+        }
       }
       
       toast.error(errorMessage);

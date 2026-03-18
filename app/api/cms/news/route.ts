@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { NewsStatus } from '@prisma/client';
+import { NewsStatus, Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.NewsArticleWhereInput = {};
     if (status) where.status = status;
     if (category) where.category = category;
     if (featured) where.featured = true;
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'NEWS_ARTICLE',
+        entityType: 'SYSTEM',
         entityId: article.id,
         entityName: `News article '${article.title}' created`,
       },

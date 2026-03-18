@@ -7,11 +7,22 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import Link from 'next/link';
-import { Paperclip, Reply, Check, CheckCheck, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { Paperclip, Reply, Check, CheckCheck, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface MessageAttachment {
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+}
+
+type ReactionAggregate = {
+  emoji: string;
+  count: number;
+  users: string[];
+};
 
 interface ChatMessage {
   id: string;
@@ -32,11 +43,7 @@ interface ChatMessage {
   }>;
   isPinned: boolean;
   pinnedByName?: string;
-  attachments?: Array<{
-    fileName: string;
-    fileUrl: string;
-    fileSize: number;
-  }>;
+  attachments?: MessageAttachment[];
   replyToMessageId?: string;
   threadId?: string;
   isThreadStarter?: boolean;
@@ -51,7 +58,7 @@ interface ChatMessage {
 
 export default function CaseMessagesPage() {
   const params = useParams();
-  const router = useRouter();
+  useRouter();
   const { data: session } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -127,7 +134,6 @@ export default function CaseMessagesPage() {
         const data = await response.json();
         const fetchedMessages = data.messages || [];
         setMessages(fetchedMessages);
-        
         // Mark all messages as read
         fetchedMessages.forEach((msg: ChatMessage) => {
           if (!msg.readBy?.includes(session?.user?.id || '')) {
@@ -157,7 +163,7 @@ export default function CaseMessagesPage() {
 
     setUploading(true);
     try {
-      let attachments: any[] = [];
+      let attachments: MessageAttachment[] = [];
 
       // Upload file if selected
       if (selectedFile) {
@@ -307,7 +313,7 @@ export default function CaseMessagesPage() {
   const getMessageTypeColor = (type: string) => {
     switch (type) {
       case 'SYSTEM': return 'info';
-      case 'IMPORTANT': return 'error';
+      case 'IMPORTANT': return 'danger';
       case 'FILE_SHARE': return 'warning';
       default: return 'default';
     }
@@ -370,7 +376,7 @@ export default function CaseMessagesPage() {
                         Unpin
                       </Button>
                     </div>
-                    <p className="text-sm mt-1">{message.message}</p>
+                    <p className="text-sm mt-1">{message.messageText}</p>
                   </div>
                 ))}
               </div>
@@ -487,7 +493,7 @@ export default function CaseMessagesPage() {
                       {message.reactions && message.reactions.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                           {Object.entries(
-                            message.reactions.reduce((acc: any, r: any) => {
+                            message.reactions.reduce<Record<string, ReactionAggregate>>((acc, r) => {
                               if (!acc[r.emoji]) {
                                 acc[r.emoji] = { emoji: r.emoji, count: 0, users: [] };
                               }
@@ -495,7 +501,7 @@ export default function CaseMessagesPage() {
                               acc[r.emoji].users.push(r.userName);
                               return acc;
                             }, {})
-                          ).map(([emoji, data]: [string, any]) => (
+                          ).map(([emoji, data]: [string, ReactionAggregate]) => (
                             <button
                               key={emoji}
                               onClick={() => addReaction(message.id, emoji)}

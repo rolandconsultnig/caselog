@@ -2,15 +2,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { getPermissions, canAccessCase } from '@/lib/permissions';
+import { Prisma, TenantType } from '@prisma/client';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type UserOptions } from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+
+type ExportSingleCasePayload = Prisma.CaseGetPayload<{
+  include: {
+    victims: true;
+    perpetrators: true;
+    evidence: true;
+    witnesses: true;
+  };
+}>;
+
+type ExportMultiCasePayload = Prisma.CaseGetPayload<{
+  include: {
+    victims: { take: 1 };
+    perpetrators: { take: 1 };
+  };
+}>;
+
+type CsvCell = string | number | boolean | null | undefined;
+
+type JsPdfWithLastAutoTable = {
+  lastAutoTable?: {
+    finalY?: number;
+  };
+};
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const permissions = getPermissions(
+      session.user.accessLevel,
+      session.user.tenantType as TenantType
+    );
+
+    if (!permissions.canExportData) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -34,6 +69,16 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Case not found' }, { status: 404 });
       }
 
+      if (
+        !canAccessCase(
+          session.user.tenantId,
+          caseData.tenantId,
+          session.user.tenantType as TenantType
+        )
+      ) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
       if (format === 'pdf') {
         return exportCasePDF(caseData);
       } else if (format === 'excel') {
@@ -43,8 +88,11 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Export multiple cases
-      const where: any = {};
-      if (tenantId && session.user.tenantType !== 'FEDERAL') {
+      const where: Prisma.CaseWhereInput = {};
+
+      if (session.user.tenantType !== 'FEDERAL') {
+        where.tenantId = session.user.tenantId;
+      } else if (tenantId) {
         where.tenantId = tenantId;
       }
 
@@ -76,7 +124,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function exportCasePDF(caseData: any) {
+function exportCasePDF(caseData: ExportSingleCasePayload) {
   const doc = new jsPDF();
   
   doc.setFontSize(18);
@@ -96,7 +144,7 @@ function exportCasePDF(caseData: any) {
     ['Case Number', caseData.caseNumber || 'N/A'],
     ['Case Type', caseData.caseType || 'N/A'],
     ['Status', caseData.status || 'N/A'],
-    ['Date Reported', caseData.dateReported ? new Date(caseData.dateReported).toLocaleDateString() : 'N/A'],
+    ['Date Reported', caseData.createdAt ? new Date(caseData.createdAt).toLocaleDateString() : 'N/A'],
     ['Priority', caseData.priority || 'N/A'],
   ];
 
@@ -105,18 +153,19 @@ function exportCasePDF(caseData: any) {
     startY: yPos,
     theme: 'grid',
     styles: { fontSize: 9 },
-  } as any);
+  } as UserOptions);
 
-  yPos = (doc as any).lastAutoTable.finalY + 15;
+  yPos = (((doc as unknown as JsPdfWithLastAutoTable).lastAutoTable?.finalY ?? yPos) + 15);
 
   // Victims
-  if (caseData.victims && caseData.victims.length > 0) {
+  if (caseData.victims.length > 0) {
     doc.setFontSize(14);
     doc.text('Victims', 14, yPos);
     yPos += 10;
 
-    const victimData = caseData.victims.map((v: any) => [
-      `${v.firstName || ''} ${v.lastName || ''}`,
+    const victimData = caseData.victims.map((v) => [
+      v.firstName || '',
+      v.lastName || '',
       v.age?.toString() || '',
       v.gender || '',
     ]);
@@ -127,19 +176,19 @@ function exportCasePDF(caseData: any) {
       startY: yPos,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [22, 163, 74] },
-    });
+    } as UserOptions);
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (((doc as unknown as JsPdfWithLastAutoTable).lastAutoTable?.finalY ?? yPos) + 15);
   }
 
   // Perpetrators
-  if (caseData.perpetrators && caseData.perpetrators.length > 0) {
+  if (caseData.perpetrators.length > 0) {
     doc.setFontSize(14);
     doc.text('Perpetrators', 14, yPos);
     yPos += 10;
 
-    const perpetratorData = caseData.perpetrators.map((p: any) => [
-      p.name || '',
+    const perpetratorData = caseData.perpetrators.map((p) => [
+      (p.firstName || p.lastName) ? `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() : '',
       p.age?.toString() || '',
       p.gender || '',
     ]);
@@ -150,7 +199,7 @@ function exportCasePDF(caseData: any) {
       startY: yPos,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [22, 163, 74] },
-    });
+    } as UserOptions);
   }
 
   const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
@@ -163,7 +212,7 @@ function exportCasePDF(caseData: any) {
   });
 }
 
-function exportCaseExcel(caseData: any) {
+function exportCaseExcel(caseData: ExportSingleCasePayload) {
   const wb = XLSX.utils.book_new();
 
   // Case Information Sheet
@@ -171,7 +220,7 @@ function exportCaseExcel(caseData: any) {
     ['Case Number', caseData.caseNumber || 'N/A'],
     ['Case Type', caseData.caseType || 'N/A'],
     ['Status', caseData.status || 'N/A'],
-    ['Date Reported', caseData.dateReported ? new Date(caseData.dateReported).toLocaleDateString() : 'N/A'],
+    ['Date Reported', (caseData.reportedDate ?? caseData.createdAt) ? new Date(caseData.reportedDate ?? caseData.createdAt).toLocaleDateString() : 'N/A'],
     ['Priority', caseData.priority || 'N/A'],
   ];
   const ws1 = XLSX.utils.aoa_to_sheet([['Case Information'], ...caseInfo]);
@@ -181,7 +230,7 @@ function exportCaseExcel(caseData: any) {
   if (caseData.victims && caseData.victims.length > 0) {
     const victimData = [
       ['First Name', 'Last Name', 'Age', 'Gender'],
-      ...caseData.victims.map((v: any) => [
+      ...caseData.victims.map((v) => [
         v.firstName || '',
         v.lastName || '',
         v.age || '',
@@ -193,11 +242,11 @@ function exportCaseExcel(caseData: any) {
   }
 
   // Perpetrators Sheet
-  if (caseData.perpetrators && caseData.perpetrators.length > 0) {
+  if (caseData.perpetrators.length > 0) {
     const perpetratorData = [
       ['Name', 'Age', 'Gender'],
-      ...caseData.perpetrators.map((p: any) => [
-        p.name || '',
+      ...caseData.perpetrators.map((p) => [
+        (p.firstName || p.lastName) ? `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() : '',
         p.age || '',
         p.gender || '',
       ]),
@@ -216,17 +265,17 @@ function exportCaseExcel(caseData: any) {
   });
 }
 
-function exportCaseCSV(caseData: any) {
+function exportCaseCSV(caseData: ExportSingleCasePayload) {
   const rows = [
     ['Case Number', caseData.caseNumber || 'N/A'],
     ['Case Type', caseData.caseType || 'N/A'],
     ['Status', caseData.status || 'N/A'],
-    ['Date Reported', caseData.dateReported ? new Date(caseData.dateReported).toLocaleDateString() : 'N/A'],
+    ['Date Reported', caseData.createdAt ? new Date(caseData.createdAt).toLocaleDateString() : 'N/A'],
     ['Priority', caseData.priority || 'N/A'],
     [],
     ['Victims'],
     ['First Name', 'Last Name', 'Age', 'Gender'],
-    ...(caseData.victims || []).map((v: any) => [
+    ...caseData.victims.map((v) => [
       v.firstName || '',
       v.lastName || '',
       v.age || '',
@@ -235,14 +284,20 @@ function exportCaseCSV(caseData: any) {
     [],
     ['Perpetrators'],
     ['Name', 'Age', 'Gender'],
-    ...(caseData.perpetrators || []).map((p: any) => [
-      p.name || '',
+    ...caseData.perpetrators.map((p) => [
+      (p.firstName || p.lastName) ? `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() : '',
       p.age || '',
       p.gender || '',
     ]),
   ];
 
-  const csv = rows.map((row) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n');
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell: CsvCell) => `"${cell ?? ''}"`)
+        .join(',')
+    )
+    .join('\n');
 
   return new NextResponse(csv, {
     headers: {
@@ -252,7 +307,7 @@ function exportCaseCSV(caseData: any) {
   });
 }
 
-function exportCasesPDF(cases: any[]) {
+function exportCasesPDF(cases: ExportMultiCasePayload[]) {
   const doc = new jsPDF();
   
   doc.setFontSize(18);
@@ -265,7 +320,7 @@ function exportCasesPDF(cases: any[]) {
     c.caseNumber || 'N/A',
     c.caseType || 'N/A',
     c.status || 'N/A',
-    c.dateReported ? new Date(c.dateReported).toLocaleDateString() : 'N/A',
+    c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A',
     c.priority || 'N/A',
   ]);
 
@@ -275,7 +330,7 @@ function exportCasesPDF(cases: any[]) {
     startY: 45,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [22, 163, 74] },
-  });
+  } as UserOptions);
 
   const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
   
@@ -287,14 +342,14 @@ function exportCasesPDF(cases: any[]) {
   });
 }
 
-function exportCasesExcel(cases: any[]) {
+function exportCasesExcel(cases: ExportMultiCasePayload[]) {
   const caseData = [
     ['Case Number', 'Case Type', 'Status', 'Date Reported', 'Priority'],
     ...cases.map((c) => [
       c.caseNumber || 'N/A',
       c.caseType || 'N/A',
       c.status || 'N/A',
-      c.dateReported ? new Date(c.dateReported).toLocaleDateString() : 'N/A',
+      c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A',
       c.priority || 'N/A',
     ]),
   ];
@@ -313,19 +368,21 @@ function exportCasesExcel(cases: any[]) {
   });
 }
 
-function exportCasesCSV(cases: any[]) {
+function exportCasesCSV(cases: ExportMultiCasePayload[]) {
   const rows = [
     ['Case Number', 'Case Type', 'Status', 'Date Reported', 'Priority'],
     ...cases.map((c) => [
       c.caseNumber || 'N/A',
       c.caseType || 'N/A',
       c.status || 'N/A',
-      c.dateReported ? new Date(c.dateReported).toLocaleDateString() : 'N/A',
+      c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'N/A',
       c.priority || 'N/A',
     ]),
   ];
 
-  const csv = rows.map((row) => row.map((cell: any) => `"${cell}"`).join(',')).join('\n');
+  const csv = rows
+    .map((row) => row.map((cell: CsvCell) => `"${cell ?? ''}"`).join(','))
+    .join('\n');
 
   return new NextResponse(csv, {
     headers: {

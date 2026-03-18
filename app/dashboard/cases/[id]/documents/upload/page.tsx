@@ -2,18 +2,17 @@
 
 import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import Link from 'next/link';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import { Upload, File, X, CheckCircle2 } from 'lucide-react';
 
 export default function DocumentUploadPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -89,12 +88,13 @@ export default function DocumentUploadPage() {
         throw new Error(error.error || 'Upload failed');
       }
 
-      const data = await response.json();
+      await response.json();
       toast.success('Document uploaded successfully');
       router.push(`/dashboard/cases/${params.id}/documents`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading document:', error);
-      toast.error(error.message || 'Failed to upload document');
+      const message = error instanceof Error ? error.message : 'Failed to upload document';
+      toast.error(message);
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -109,8 +109,7 @@ export default function DocumentUploadPage() {
     }
   };
 
-  const getFileIcon = (fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
+  const getFileIcon = () => {
     return <File className="w-8 h-8 text-blue-500" />;
   };
 
@@ -161,13 +160,15 @@ export default function DocumentUploadPage() {
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-4">
                         {preview ? (
-                          <img
+                          <Image
                             src={preview}
                             alt="Preview"
+                            width={64}
+                            height={64}
                             className="w-16 h-16 object-cover rounded"
                           />
                         ) : (
-                          getFileIcon(selectedFile.name)
+                          getFileIcon()
                         )}
                         <div>
                           <p className="font-medium">{selectedFile.name}</p>

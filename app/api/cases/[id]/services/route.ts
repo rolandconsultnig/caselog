@@ -89,7 +89,7 @@ export async function POST(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'CASE_SERVICE',
+        entityType: 'CASE',
         entityId: service.id,
         entityName: `Service referral added to case ${params.id}`,
       },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -53,7 +54,7 @@ export async function PATCH(
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Prisma.CaseCivilSocietyUpdateInput = {};
 
     // Handle progress report update
     if (body.progress) {
@@ -65,7 +66,6 @@ export async function PATCH(
 
     // Handle milestone update
     if (body.milestone) {
-      const currentMilestones = existingPartnership.milestonesAchieved || [];
       updateData.milestonesAchieved = body.milestone;
     }
 
@@ -98,7 +98,7 @@ export async function PATCH(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'UPDATE',
-        entityType: 'CASE_CIVIL_SOCIETY',
+        entityType: 'CASE',
         entityId: partnership.id,
         entityName: `NGO partnership updated in case ${params.id}`,
       },

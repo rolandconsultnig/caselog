@@ -179,27 +179,39 @@ export const hasPermission = (userRole: string, requiredRole: string[]) => {
 };
 
 export const canAccessDashboard = (userRole: string) => {
-  return AUTH_CONFIG.roles.dashboardAccess.includes(userRole as any);
+  return AUTH_CONFIG.roles.dashboardAccess.includes(
+    userRole as (typeof AUTH_CONFIG.roles.dashboardAccess)[number]
+  );
 };
 
 export const canManageUsers = (userRole: string) => {
-  return AUTH_CONFIG.roles.userManagement.includes(userRole as any);
+  return AUTH_CONFIG.roles.userManagement.includes(
+    userRole as (typeof AUTH_CONFIG.roles.userManagement)[number]
+  );
 };
 
 export const canGenerateReports = (userRole: string) => {
-  return AUTH_CONFIG.roles.reportGeneration.includes(userRole as any);
+  return AUTH_CONFIG.roles.reportGeneration.includes(
+    userRole as (typeof AUTH_CONFIG.roles.reportGeneration)[number]
+  );
 };
 
 export const canAccessAdminPanel = (userRole: string) => {
-  return AUTH_CONFIG.roles.adminPanel.includes(userRole as any);
+  return AUTH_CONFIG.roles.adminPanel.includes(
+    userRole as (typeof AUTH_CONFIG.roles.adminPanel)[number]
+  );
 };
 
 export const isFederalUser = (userRole: string) => {
-  return AUTH_CONFIG.tenant.federalAccess.includes(userRole as any);
+  return AUTH_CONFIG.tenant.federalAccess.includes(
+    userRole as (typeof AUTH_CONFIG.tenant.federalAccess)[number]
+  );
 };
 
 export const isStateUser = (userRole: string) => {
-  return AUTH_CONFIG.tenant.stateAccess.includes(userRole as any);
+  return AUTH_CONFIG.tenant.stateAccess.includes(
+    userRole as (typeof AUTH_CONFIG.tenant.stateAccess)[number]
+  );
 };
 
 // 🔐 Password Validation

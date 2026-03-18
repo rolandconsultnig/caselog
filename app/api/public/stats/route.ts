@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
         closedCases,
         casesByStatus,
         casesByPriority,
-        recentCases,
         casesByMonth,
       ] = await Promise.all([
         // Total cases
@@ -63,20 +62,6 @@ export async function GET(request: NextRequest) {
           by: ['priority'],
           where: { tenantId: tenant.id },
           _count: true,
-        }),
-        // Recent cases (last 10)
-        prisma.case.findMany({
-          where: { tenantId: tenant.id },
-          orderBy: { reportedDate: 'desc' },
-          take: 10,
-          select: {
-            id: true,
-            caseNumber: true,
-            title: true,
-            status: true,
-            priority: true,
-            reportedDate: true,
-          },
         }),
         // Cases by month (last 12 months)
         prisma.$queryRaw`
@@ -110,7 +95,6 @@ export async function GET(request: NextRequest) {
             priority: item.priority,
             count: item._count,
           })),
-          recentCases,
           casesByMonth,
         },
       });

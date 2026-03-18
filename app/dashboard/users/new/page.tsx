@@ -38,7 +38,7 @@ export default function NewUserPage() {
           const response = await axios.get('/api/tenants');
           setTenants(response.data);
         }
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch states/tenants');
       }
     };
@@ -129,12 +129,20 @@ export default function NewUserPage() {
     setIsSubmitting(true);
 
     try {
-      const { confirmPassword, ...submitData } = formData;
+      const submitData = (() => {
+        const { confirmPassword, ...rest } = formData;
+        void confirmPassword;
+        return rest;
+      })();
       await axios.post('/api/users', submitData);
       toast.success('User created successfully');
       router.push('/dashboard/users');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create user');
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      toast.error(message || 'Failed to create user');
     } finally {
       setIsSubmitting(false);
     }

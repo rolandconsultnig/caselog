@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Scale, Calendar, FileText, Gavel, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Scale, Calendar, FileText, Gavel, Clock, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -31,7 +31,7 @@ interface CourtRecord {
 }
 
 export default function CourtDashboard() {
-  const { data: session } = useSession();
+  useSession();
   const [courtRecords, setCourtRecords] = useState<CourtRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -59,7 +59,7 @@ export default function CourtDashboard() {
         verdictsReached: records.filter((r: CourtRecord) => r.verdictReached).length,
         appealsFiled: records.filter((r: CourtRecord) => r.appealFiled).length,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching court data:', error);
       toast.error('Failed to load court records');
     } finally {

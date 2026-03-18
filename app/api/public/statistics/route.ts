@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { subDays, subMonths, startOfMonth, endOfMonth, startOfDay, endOfDay, format } from 'date-fns';
+import { Prisma } from '@prisma/client';
+import { subDays, subMonths, startOfMonth, startOfDay, endOfDay, format } from 'date-fns';
 
 // GET /api/public/statistics - Get public dashboard statistics
 export async function GET(request: NextRequest) {
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause
-    const where: any = {
+    const where: Prisma.CaseWhereInput = {
       createdAt: {
         gte: startOfDay(dateFrom),
         lte: endOfDay(now),
@@ -111,19 +112,30 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    // Prisma `groupBy` with `_count: true` returns `_count` as a number.
+    type GroupByCaseType = { caseType: string | null; _count: number };
+    type GroupByTenant = { tenantId: string; _count: number };
+    type StateStatistic = {
+      tenantId: string;
+      tenantName: string;
+      tenantCode: string;
+      count: number;
+    };
+    type MonthlyTrendRow = { month: Date; cases: number | bigint };
+
     // Process state statistics
-    let stateStatistics: any[] = [];
+    let stateStatistics: StateStatistic[] = [];
     let activeStatesCount = 0;
     
-    if (casesByState.length > 0) {
+    if ((casesByState as unknown[]).length > 0) {
       const tenants = await prisma.tenant.findMany({
         where: {
-          id: { in: casesByState.map((s: any) => s.tenantId) },
+          id: { in: (casesByState as GroupByTenant[]).map((s) => s.tenantId) },
         },
         select: { id: true, name: true, code: true },
       });
 
-      stateStatistics = casesByState.map((stat: any) => {
+      stateStatistics = (casesByState as GroupByTenant[]).map((stat) => {
         const tenant = tenants.find((t) => t.id === stat.tenantId);
         return {
           tenantId: stat.tenantId,
@@ -133,7 +145,7 @@ export async function GET(request: NextRequest) {
         };
       }).sort((a, b) => b.count - a.count);
 
-      activeStatesCount = new Set(casesByState.map((s: any) => s.tenantId)).size;
+      activeStatesCount = new Set((casesByState as GroupByTenant[]).map((s) => s.tenantId)).size;
     }
 
     // Calculate resolution rate
@@ -142,13 +154,13 @@ export async function GET(request: NextRequest) {
       : 0;
 
     // Process monthly trend data
-    const processedMonthlyTrend = (monthlyTrend as any[]).map(item => ({
+    const processedMonthlyTrend = (monthlyTrend as MonthlyTrendRow[]).map((item) => ({
       month: format(new Date(item.month), 'MMM yyyy'),
       cases: Number(item.cases),
     }));
 
     // Process cases by type
-    const processedCasesByType = casesByType.map((item: any) => ({
+    const processedCasesByType = (casesByType as GroupByCaseType[]).map((item) => ({
       type: item.caseType,
       count: item._count,
     }));

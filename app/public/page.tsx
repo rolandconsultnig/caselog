@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import {
   BarChart,
@@ -21,7 +20,6 @@ import {
 } from 'recharts';
 import {
   Shield,
-  Users,
   FileText,
   TrendingUp,
   MapPin,
@@ -39,8 +37,27 @@ import Image from 'next/image';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1', '#8B5CF6'];
 
+interface PublicStatistics {
+  summary?: {
+    total?: number;
+    activeStates?: number;
+    thisMonth?: number;
+    resolutionRate?: number;
+  };
+  casesByType?: Array<{ type: string; count: number }>;
+  monthlyTrend?: Array<{ month: string; cases: number }>;
+  stateComparison?: Array<{ name: string; cases: number }>;
+  availableStates?: Array<{ id: string; name: string }>;
+}
+
+interface ChartDatum {
+  name: string;
+  value: number;
+  fill: string;
+}
+
 export default function PublicDashboard() {
-  const [statistics, setStatistics] = useState<any>(null);
+  const [statistics, setStatistics] = useState<PublicStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedState, setSelectedState] = useState('all');
   const [timeRange, setTimeRange] = useState('all');
@@ -63,8 +80,8 @@ export default function PublicDashboard() {
     }
   };
 
-  const casesByTypeData = statistics?.casesByType
-    ?.map((item: any, index: number) => ({
+  const casesByTypeData: ChartDatum[] =
+    statistics?.casesByType?.map((item, index) => ({
       name: item.type.replace(/_/g, ' '),
       value: item.count,
       fill: COLORS[index % COLORS.length],
@@ -128,13 +145,15 @@ export default function PublicDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Image
-                src="/coat-of-arms.png"
-                alt="Nigerian Coat of Arms"
-                width={40}
-                height={40}
-                className="object-contain"
-              />
+              <span className="relative w-10 h-10 flex-shrink-0">
+                <Image
+                  src="/coat-of-arms.png"
+                  alt="Nigerian Coat of Arms"
+                  fill
+                  sizes="40px"
+                  className="object-contain"
+                />
+              </span>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
                   SGBV Information System - Public Dashboard
@@ -165,7 +184,7 @@ export default function PublicDashboard() {
                 Sexual and Gender-Based Violence Information System
               </h2>
               <p className="text-gray-600 mb-4">
-                Welcome to the public dashboard of Nigeria's SGBV Information System. 
+                Welcome to the public dashboard of Nigeria&apos;s SGBV Information System. 
                 This platform provides transparent access to aggregated statistics on 
                 sexual and gender-based violence cases across all Nigerian states.
               </p>
@@ -228,7 +247,7 @@ export default function PublicDashboard() {
                 className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
                 <option value="all">All States</option>
-                {statistics?.availableStates?.map((state: any) => (
+                {statistics?.availableStates?.map((state) => (
                   <option key={state.id} value={state.id}>
                     {state.name}
                   </option>
@@ -295,7 +314,7 @@ export default function PublicDashboard() {
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {casesByTypeData.map((entry: any, index: number) => (
+                      {casesByTypeData.map((entry, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Pie>
@@ -373,7 +392,7 @@ export default function PublicDashboard() {
               About This Dashboard
             </h3>
             <p className="text-gray-600 mb-4">
-              This public dashboard is part of Nigeria's commitment to transparency 
+              This public dashboard is part of Nigeria&apos;s commitment to transparency 
               and accountability in addressing sexual and gender-based violence. 
               The data is updated regularly and represents anonymized, aggregated 
               information from all participating states.
@@ -397,13 +416,15 @@ export default function PublicDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <Image
-                  src="/coat-of-arms.png"
-                  alt="Nigerian Coat of Arms"
-                  width={32}
-                  height={32}
-                  className="object-contain"
-                />
+                <span className="relative w-8 h-8 flex-shrink-0">
+                  <Image
+                    src="/coat-of-arms.png"
+                    alt="Nigerian Coat of Arms"
+                    fill
+                    sizes="32px"
+                    className="object-contain"
+                  />
+                </span>
                 <h4 className="text-lg font-semibold">Federal Ministry of Justice</h4>
               </div>
               <p className="text-gray-400 text-sm">

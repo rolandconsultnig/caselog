@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
+
+type TransformedCustodyRecord = {
+  id: string;
+  evidenceId: string;
+  evidenceNumber: string;
+  transferredFrom: string;
+  transferredTo: string;
+  transferDate: string;
+  purpose: string;
+  condition: string;
+  receivedBy: string | null;
+  receivedBySignature?: string | null;
+  notes: string | null;
+  transferNumber?: string;
+};
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +33,7 @@ export async function GET(
     }
 
     // Get evidence items for this case
-    const evidenceWhere: any = { caseId: params.id };
+    const evidenceWhere: Prisma.EvidenceWhereInput = { caseId: params.id };
     if (evidenceId) {
       evidenceWhere.id = evidenceId;
     }
@@ -46,7 +62,7 @@ export async function GET(
     });
 
     // Transform data for frontend - flatten transfers
-    const transformedRecords: any[] = [];
+    const transformedRecords: TransformedCustodyRecord[] = [];
     custodyRecords.forEach(custody => {
       if (custody.custodyTransfers.length === 0) {
         // If no transfers, show the initial custody record
@@ -212,17 +228,17 @@ export async function POST(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'CUSTODY_TRANSFER',
+        entityType: 'EVIDENCE',
         entityId: custodyTransfer.id,
         entityName: `Custody transfer ${transferNumber} created for evidence in case ${params.id}`,
       },
     });
 
     return NextResponse.json({ custodyTransfer });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating custody transfer:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create custody transfer' },
+      { error: error instanceof Error ? error.message : 'Failed to create custody transfer' },
       { status: 500 }
     );
   }

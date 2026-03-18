@@ -9,10 +9,6 @@ import { Button } from '@/components/ui/Button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import {
   User,
-  Mail,
-  Phone,
-  Shield,
-  Calendar,
   Activity,
   FileText,
   ArrowLeft,
@@ -84,8 +80,12 @@ export default function UserProfilePage() {
         accessLevel: response.data.accessLevel,
         isActive: response.data.isActive,
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load user');
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      toast.error(message || 'Failed to load user');
       router.push('/dashboard/users');
     } finally {
       setLoading(false);
@@ -104,8 +104,12 @@ export default function UserProfilePage() {
       toast.success('User updated successfully');
       setIsEditing(false);
       fetchUser();
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to update user');
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      toast.error(message || 'Failed to update user');
     } finally {
       setIsSaving(false);
     }
@@ -359,7 +363,7 @@ export default function UserProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>User's recent actions and activities</CardDescription>
+                <CardDescription>User&apos;s recent actions and activities</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

@@ -1,16 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
 import { getPermissions } from '@/lib/permissions';
-import { logAudit } from '@/lib/utils';
 import { TenantType } from '@prisma/client';
 
 // POST /api/deletion-requests/[id]/approve - Approve deletion request
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {

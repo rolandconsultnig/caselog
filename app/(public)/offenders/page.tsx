@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Shield, Search, User, Calendar, MapPin, AlertCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';

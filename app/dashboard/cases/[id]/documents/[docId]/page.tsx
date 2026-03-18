@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
-import { Download, Trash2, ArrowLeft, File, Image, Video, FileText, Music } from 'lucide-react';
+import Image from 'next/image';
+import { Download, Trash2, ArrowLeft, File, Image as ImageIcon, Video, FileText, Music } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CaseFile {
@@ -42,11 +43,7 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    fetchDocument();
-  }, [params.docId]);
-
-  const fetchDocument = async () => {
+  const fetchDocument = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/documents`);
       if (response.ok) {
@@ -65,7 +62,11 @@ export default function DocumentDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.docId, params.id, router]);
+
+  useEffect(() => {
+    fetchDocument();
+  }, [fetchDocument]);
 
   const handleDownload = () => {
     window.open(`/api/documents/${params.docId}`, '_blank');
@@ -89,9 +90,10 @@ export default function DocumentDetailPage() {
 
       toast.success('Document deleted successfully');
       router.push(`/dashboard/cases/${params.id}/documents`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting document:', error);
-      toast.error(error.message || 'Failed to delete document');
+      const message = error instanceof Error ? error.message : 'Failed to delete document';
+      toast.error(message);
     } finally {
       setDeleting(false);
     }
@@ -109,7 +111,7 @@ export default function DocumentDetailPage() {
     if (!document) return <File className="w-12 h-12 text-gray-400" />;
     
     if (document.mimeType?.startsWith('image/')) {
-      return <Image className="w-12 h-12 text-blue-500" />;
+      return <ImageIcon className="w-12 h-12 text-blue-500" />;
     } else if (document.mimeType?.startsWith('video/')) {
       return <Video className="w-12 h-12 text-purple-500" />;
     } else if (document.mimeType?.startsWith('audio/')) {
@@ -204,9 +206,11 @@ export default function DocumentDetailPage() {
                     {document.mimeType || 'Unknown file type'}
                   </p>
                   {document.mimeType?.startsWith('image/') && (
-                    <img
+                    <Image
                       src={`/api/documents/${params.docId}/view`}
-                      alt={document.originalFileName}
+                      alt={document.originalFileName || document.fileName || ''}
+                      width={1200}
+                      height={800}
                       className="mt-4 max-w-full max-h-96 rounded-lg shadow-lg"
                     />
                   )}

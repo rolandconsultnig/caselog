@@ -6,17 +6,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import LadyJusticeAI from '@/components/LadyJusticeAI';
 import {
-  LayoutDashboard,
   FileText,
   Users,
   Settings,
   LogOut,
   BarChart3,
-  Trash2,
   Menu,
   X,
-  MapPin,
-  Briefcase,
   Scale,
   UserSearch,
   Gavel,
@@ -32,9 +28,6 @@ import {
   TrendingUp,
   Archive,
   UserPlus,
-  Lock,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
 import { getAccessLevelLabel } from '@/lib/utils';
@@ -48,6 +41,15 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  caseId?: string;
+}
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
@@ -55,9 +57,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedStateName, setSelectedStateName] = useState('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [expandedSections, setExpandedSections] = useState<string[]>(['overview', 'cases', 'legal', 'communication', 'services', 'analytics', 'administration']);
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
@@ -115,8 +116,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       const response = await fetch('/api/notifications');
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.notifications?.filter((n: any) => !n.read).length || 0);
+        const nextNotifications = (data.notifications || []) as Notification[];
+        setNotifications(nextNotifications);
+        setUnreadCount(nextNotifications.filter((n) => !n.read).length);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -136,16 +138,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => 
-      prev.includes(section) 
-        ? prev.filter(s => s !== section)
-        : [...prev, section]
-    );
-  };
-
   const getCategoryInfo = (category: string) => {
-    const categoryMap: Record<string, { title: string; icon: any; color: string }> = {
+    const categoryMap: Record<
+      string,
+      {
+        title: string;
+        icon: React.ComponentType<{ className?: string }>;
+        color: string;
+      }
+    > = {
       overview: { title: 'Overview', icon: Home, color: 'text-blue-600' },
       cases: { title: 'Case Management', icon: FolderOpen, color: 'text-green-600' },
       legal: { title: 'Legal Process', icon: Scale, color: 'text-purple-600' },
@@ -347,14 +348,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Logo - Top Center */}
           <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
             <div className="flex items-center justify-center space-x-4">
-              <Image 
-                src={session?.user?.tenantName ? getStateLogo(session.user.tenantName) : '/coat-of-arms.png'} 
-                alt={session?.user?.tenantName ? `${session.user.tenantName} Logo` : 'Nigerian Coat of Arms'} 
-                width={50} 
-                height={50}
-                className="object-contain"
-                style={{ width: 'auto', height: 'auto' }}
-              />
+              <span className="relative w-12 h-12 flex-shrink-0">
+                <Image 
+                  src={session?.user?.tenantName ? getStateLogo(session.user.tenantName) : '/coat-of-arms.png'} 
+                  alt={session?.user?.tenantName ? `${session.user.tenantName} Logo` : 'Nigerian Coat of Arms'} 
+                  fill
+                  sizes="50px"
+                  className="object-contain"
+                />
+              </span>
               <div className="text-center">
                 <h1 className="text-xl font-bold text-gray-900">Sexual and Gender-Based Violence Information System</h1>
                 <p className="text-sm text-gray-600 font-medium">Case Management</p>
@@ -382,7 +384,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               }, {} as Record<string, typeof navigation>)
             ).map(([category, items]) => {
               const categoryInfo = getCategoryInfo(category);
-              const isExpanded = expandedSections.includes(category);
               const CategoryIcon = categoryInfo.icon;
 
               return (
@@ -474,14 +475,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </h2>
                 {session?.user?.tenantName && (
                   <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 rounded-full">
-                    <Image
-                      src={getStateLogo(session.user.tenantName)}
-                      alt={`${session.user.tenantName} Logo`}
-                      width={20}
-                      height={20}
-                      className="object-contain"
-                      style={{ width: 'auto', height: 'auto' }}
-                    />
+                    <span className="relative w-5 h-5 flex-shrink-0">
+                      <Image
+                        src={getStateLogo(session.user.tenantName)}
+                        alt={`${session.user.tenantName} Logo`}
+                        fill
+                        sizes="20px"
+                        className="object-contain"
+                      />
+                    </span>
                     <span className="text-sm font-medium text-green-800">
                       {session.user.tenantName}
                     </span>
@@ -606,14 +608,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     {selectedStateName && (
                       <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
                         <div className="flex items-center space-x-3">
-                          <Image
-                            src={getStateLogo(selectedStateName)}
-                            alt={`${selectedStateName} Logo`}
-                            width={32}
-                            height={32}
-                            className="object-contain"
-                            style={{ width: 'auto', height: 'auto' }}
-                          />
+                          <span className="relative w-8 h-8 flex-shrink-0">
+                            <Image
+                              src={getStateLogo(selectedStateName)}
+                              alt={`${selectedStateName} Logo`}
+                              fill
+                              sizes="32px"
+                              className="object-contain"
+                            />
+                          </span>
                           <div>
                             <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Current State</p>
                             <p className="text-sm font-bold text-gray-900">{selectedStateName}</p>

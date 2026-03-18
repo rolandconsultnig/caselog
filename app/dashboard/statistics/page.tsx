@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -8,18 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
-  BarChart3,
-  PieChart,
-  TrendingUp,
-  Calendar,
   Download,
   RefreshCw,
-  Filter,
-  Eye,
   AlertTriangle,
   CheckCircle,
   Clock,
-  Users,
   FileText,
   Shield
 } from 'lucide-react';
@@ -45,7 +38,17 @@ import {
   Radar
 } from 'recharts';
 import axios from 'axios';
-import { format, subDays, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+
+interface CasesByTypeItem {
+  type: string;
+  count: number;
+}
+
+interface CasesByStateItem {
+  tenantCode: string;
+  tenantName: string;
+  count: number;
+}
 
 type TimeRange = '7d' | '30d' | '90d' | '1y' | 'all';
 type ChartType = 'bar' | 'pie' | 'line' | 'area' | 'radar';
@@ -54,7 +57,6 @@ export default function StatisticsPage() {
   const { data: session } = useSession();
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
   const [chartType, setChartType] = useState<ChartType>('bar');
-  const [selectedMetric, setSelectedMetric] = useState<string>('total');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { data: statistics, isLoading, refetch } = useQuery({
@@ -91,17 +93,19 @@ export default function StatisticsPage() {
     { name: 'Draft', value: statistics?.summary?.draft || 0, color: '#6B7280' },
   ];
 
-  const typeData = statistics?.casesByType?.map((item: any) => ({
-    name: item.type.replace(/_/g, ' '),
-    value: item.count,
-    percentage: ((item.count / (statistics?.summary?.total || 1)) * 100).toFixed(1)
-  })) || [];
+  const typeData =
+    (statistics?.casesByType as CasesByTypeItem[] | undefined)?.map((item) => ({
+      name: item.type.replace(/_/g, ' '),
+      value: item.count,
+      percentage: ((item.count / (statistics?.summary?.total || 1)) * 100).toFixed(1),
+    })) || [];
 
-  const stateData = statistics?.casesByState?.map((item: any) => ({
-    name: item.tenantCode,
-    cases: item.count,
-    fullName: item.tenantName
-  })) || [];
+  const stateData =
+    (statistics?.casesByState as CasesByStateItem[] | undefined)?.map((item) => ({
+      name: item.tenantCode,
+      cases: item.count,
+      fullName: item.tenantName,
+    })) || [];
 
   const monthlyTrend = [
     { month: 'Jan', cases: 45, approved: 32, rejected: 8 },
@@ -111,8 +115,6 @@ export default function StatisticsPage() {
     { month: 'May', cases: 55, approved: 42, rejected: 6 },
     { month: 'Jun', cases: 67, approved: 51, rejected: 8 },
   ];
-
-  const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#6B7280', '#3B82F6', '#8B5CF6'];
 
   if (!session) {
     return null;
@@ -315,7 +317,7 @@ export default function StatisticsPage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
                     <YAxis dataKey="name" type="category" width={100} />
-                    <Tooltip formatter={(value, name) => [value, 'Cases']} />
+                    <Tooltip formatter={(value) => [value, 'Cases']} />
                     <Bar dataKey="value" fill="#10B981" />
                   </BarChart>
                 </ResponsiveContainer>

@@ -79,7 +79,7 @@ export async function POST(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'CASE_CIVIL_SOCIETY',
+        entityType: 'CASE',
         entityId: ngoPartnership.id,
         entityName: `NGO partnership added to case ${params.id}`,
       },

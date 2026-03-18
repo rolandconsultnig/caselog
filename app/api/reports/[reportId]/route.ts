@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getPermissions } from '@/lib/permissions';
@@ -7,10 +7,7 @@ import { TenantType } from '@prisma/client';
 // This is a simplified version - in production, you'd store reports in a database
 // For now, we'll generate them on-demand
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { reportId: string } }
-) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -25,8 +22,6 @@ export async function GET(
     if (!permissions.canGenerateReports) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-
-    const reportId = params.reportId;
 
     // In a real implementation, you would fetch from a SavedReport table
     // For now, return a mock structure

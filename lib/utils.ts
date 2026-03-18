@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { AuditAction, AuditEntityType, Prisma } from '@prisma/client';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -71,12 +72,12 @@ export async function logAudit(data: {
   userId: string;
   userName: string;
   userRole: string;
-  action: string;
-  entityType: string;
+  action: AuditAction;
+  entityType: AuditEntityType;
   entityId?: string;
   description: string;
   caseId?: string;
-  metadata?: any;
+  metadata?: Prisma.InputJsonValue;
 }) {
   // This would be called from API routes
   const { prisma } = await import('./prisma');
@@ -85,8 +86,8 @@ export async function logAudit(data: {
       userId: data.userId,
       userName: data.userName,
       userRole: data.userRole,
-      action: data.action as any,
-      entityType: data.entityType as any,
+      action: data.action,
+      entityType: data.entityType,
       entityId: data.entityId,
       description: data.description,
       caseId: data.caseId,

@@ -12,7 +12,7 @@ export interface ExportOptions {
  * Export data to PDF
  */
 export function exportToPDF(
-  data: any[],
+  data: Array<Record<string, unknown>>,
   columns: Array<{ header: string; dataKey: string }>,
   options: ExportOptions = {}
 ): void {
@@ -62,7 +62,7 @@ export function exportToPDF(
  * Export data to Excel
  */
 export function exportToExcel(
-  data: any[],
+  data: Array<Record<string, unknown>>,
   columns: Array<{ header: string; dataKey: string }>,
   options: ExportOptions = {}
 ): void {
@@ -104,7 +104,7 @@ export function exportToExcel(
  * Export data to CSV
  */
 export function exportToCSV(
-  data: any[],
+  data: Array<Record<string, unknown>>,
   columns: Array<{ header: string; dataKey: string }>,
   options: ExportOptions = {}
 ): void {
@@ -153,13 +153,15 @@ export function exportToCSV(
 /**
  * Export case data to PDF
  */
-export function exportCaseToPDF(caseData: any): void {
+export function exportCaseToPDF(caseData: unknown): void {
   const doc = new jsPDF();
   
   doc.setFontSize(18);
   doc.text('Case Report', 14, 20);
   doc.setFontSize(10);
-  doc.text(`Case Number: ${caseData.caseNumber || 'N/A'}`, 14, 30);
+  const caseDataObj = (caseData ?? {}) as Record<string, unknown>;
+  const caseNumber = typeof caseDataObj.caseNumber === 'string' ? caseDataObj.caseNumber : 'N/A';
+  doc.text(`Case Number: ${caseNumber}`, 14, 30);
   doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 36);
 
   let yPos = 45;
@@ -169,34 +171,45 @@ export function exportCaseToPDF(caseData: any): void {
   doc.text('Case Information', 14, yPos);
   yPos += 10;
 
+  const caseType = typeof caseDataObj.caseType === 'string' ? caseDataObj.caseType : 'N/A';
+  const status = typeof caseDataObj.status === 'string' ? caseDataObj.status : 'N/A';
+  const priority = typeof caseDataObj.priority === 'string' ? caseDataObj.priority : 'N/A';
+  const dateReportedRaw = caseDataObj.dateReported;
+  const dateReported = dateReportedRaw
+    ? new Date(dateReportedRaw as string).toLocaleDateString()
+    : 'N/A';
+
   const caseInfo = [
-    ['Case Type', caseData.caseType || 'N/A'],
-    ['Status', caseData.status || 'N/A'],
-    ['Date Reported', caseData.dateReported ? new Date(caseData.dateReported).toLocaleDateString() : 'N/A'],
-    ['Priority', caseData.priority || 'N/A'],
+    ['Case Type', caseType],
+    ['Status', status],
+    ['Date Reported', dateReported],
+    ['Priority', priority],
   ];
 
   autoTable(doc, {
     body: caseInfo,
     startY: yPos,
     theme: 'grid',
-    head: false,
     styles: { fontSize: 9 },
   });
 
-  yPos = (doc as any).lastAutoTable.finalY + 15;
+  const lastAutoTable = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable;
+  yPos = (lastAutoTable?.finalY ?? yPos) + 15;
 
   // Victims
-  if (caseData.victims && caseData.victims.length > 0) {
+  const victims = Array.isArray(caseDataObj.victims)
+    ? (caseDataObj.victims as Array<Record<string, unknown>>)
+    : [];
+  if (victims.length > 0) {
     doc.setFontSize(14);
     doc.text('Victims', 14, yPos);
     yPos += 10;
 
-    const victimData = caseData.victims.map((v: any) => [
-      v.firstName || '',
-      v.lastName || '',
-      v.age?.toString() || '',
-      v.gender || '',
+    const victimData = victims.map((v) => [
+      typeof v.firstName === 'string' ? v.firstName : '',
+      typeof v.lastName === 'string' ? v.lastName : '',
+      v.age != null ? String(v.age) : '',
+      typeof v.gender === 'string' ? v.gender : '',
     ]);
 
     autoTable(doc, {
@@ -207,20 +220,24 @@ export function exportCaseToPDF(caseData: any): void {
       headStyles: { fillColor: [22, 163, 74] },
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    const lastAutoTable2 = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable;
+    yPos = (lastAutoTable2?.finalY ?? yPos) + 15;
   }
 
   // Perpetrators
-  if (caseData.perpetrators && caseData.perpetrators.length > 0) {
+  const perpetrators = Array.isArray(caseDataObj.perpetrators)
+    ? (caseDataObj.perpetrators as Array<Record<string, unknown>>)
+    : [];
+  if (perpetrators.length > 0) {
     doc.setFontSize(14);
     doc.text('Perpetrators', 14, yPos);
     yPos += 10;
 
-    const perpetratorData = caseData.perpetrators.map((p: any) => [
-      p.name || '',
-      p.age?.toString() || '',
-      p.gender || '',
-      p.relationshipToVictim || '',
+    const perpetratorData = perpetrators.map((p) => [
+      typeof p.name === 'string' ? p.name : '',
+      p.age != null ? String(p.age) : '',
+      typeof p.gender === 'string' ? p.gender : '',
+      typeof p.relationshipToVictim === 'string' ? p.relationshipToVictim : '',
     ]);
 
     autoTable(doc, {
@@ -232,14 +249,14 @@ export function exportCaseToPDF(caseData: any): void {
     });
   }
 
-  doc.save(`case-${caseData.caseNumber || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`);
+  doc.save(`case-${caseNumber || 'report'}-${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 /**
  * Bulk export cases
  */
 export function bulkExportCases(
-  cases: any[],
+  cases: Array<Record<string, unknown>>,
   format: 'pdf' | 'excel' | 'csv',
   options: ExportOptions = {}
 ): void {

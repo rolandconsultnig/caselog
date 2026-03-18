@@ -24,8 +24,8 @@ interface Witness {
 
 export default function CaseWitnessesPage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
+  useRouter();
+  useSession();
   const [witnesses, setWitnesses] = useState<Witness[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,8 +52,8 @@ export default function CaseWitnessesPage() {
       case 'NONE': return 'default';
       case 'LOW': return 'info';
       case 'MEDIUM': return 'warning';
-      case 'HIGH': return 'error';
-      case 'CRITICAL': return 'error';
+      case 'HIGH': return 'danger';
+      case 'CRITICAL': return 'danger';
       default: return 'default';
     }
   };

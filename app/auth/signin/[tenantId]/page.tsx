@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -72,17 +72,17 @@ export default function StateLoginPage() {
 
       if (result?.error) {
         // Check if it's a tenant mismatch error
-        if (result.error.includes('Access denied')) {
+        if (typeof result.error === 'string' && result.error.includes('Access denied')) {
           toast.error('Access denied: You can only log in to your assigned state portal');
         } else {
           toast.error('Invalid username or password');
         }
       } else {
         toast.success(`Login successful - ${tenant?.name}`);
-        router.push('/dashboard');
-        router.refresh();
+        // Full navigation so session cookie is sent and dashboard gets the session
+        window.location.href = '/dashboard';
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -104,21 +104,16 @@ export default function StateLoginPage() {
     return null;
   }
 
-  // Get state code for coat of arms (simplified - you'll need actual images)
-  const getStateCode = (name: string): string => {
-    return name.toLowerCase().replace(/\s+/g, '-').replace('state', '').trim();
-  };
-
-  const isFederal = tenant.type === 'FEDERAL';
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100">
       {/* Coat of Arms - Top Center */}
       <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 py-2 z-50">
         <div className="flex justify-center">
-          <img 
-            src="/coat-of-arms.png" 
-            alt="Nigerian Coat of Arms" 
+          <Image
+            src="/coat-of-arms.png"
+            alt="Nigerian Coat of Arms"
+            width={160}
+            height={40}
             className="h-10 w-auto object-contain"
           />
         </div>
@@ -129,12 +124,12 @@ export default function StateLoginPage() {
           <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6">
             <div className="flex items-center justify-center mb-4">
               {/* Coat of Arms Placeholder */}
-              <div className="bg-white rounded-full p-3 shadow-lg w-28 h-28 flex items-center justify-center overflow-hidden">
+              <div className="bg-white rounded-full p-3 shadow-lg w-28 h-28 flex items-center justify-center overflow-hidden relative">
                 <Image
                   src={getStateLogo(tenant.name)}
                   alt={`${tenant.name} Logo`}
-                  width={88}
-                  height={88}
+                  fill
+                  sizes="112px"
                   className="object-contain rounded-full"
                 />
               </div>

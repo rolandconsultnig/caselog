@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -15,13 +15,49 @@ import { TenantType } from '@prisma/client';
 import { MultiStepForm, FormStep } from '@/components/ui/MultiStepForm';
 import { NIGERIAN_STATES, getLGAsByState } from '@/lib/nigerian-locations';
 import { generateMOJFileNumber, getStateCodeFromName } from '@/lib/generate-moj-number';
+import offencesData from '@/lib/offences-reference.json';
+
+type OffenceRef = {
+  offenceName: string;
+  offenceCategory?: string;
+  section?: string;
+  act?: string;
+  law?: string;
+  penalty?: string;
+};
+
+const offenceRefs = offencesData as unknown as OffenceRef[];
 
 export default function NewCasePage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFederalUser, setIsFederalUser] = useState(false);
   const [availableLGAs, setAvailableLGAs] = useState<string[]>([]);
+
+  const parseDdMmYyyyToDate = (value: string): Date | null => {
+    const trimmed = value.trim();
+    const match = /^([0-3]\d)-([0-1]\d)-(\d{4})$/.exec(trimmed);
+    if (!match) return null;
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+
+    if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return null;
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+
+    const date = new Date(year, month - 1, day);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return date;
+  };
 
   const permissions = session
     ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
@@ -114,6 +150,7 @@ export default function NewCasePage() {
     },
 
     // Medical & Autopsy Reports
+    victimDied: false,
     medicalReport: '',
     medicalReportUpload: null as File | null,
     autopsyReport: '',
@@ -142,7 +179,7 @@ export default function NewCasePage() {
   useEffect(() => {
     if (session?.user) {
       const userTenantName = session.user.tenantName || '';
-      const isFederal = userTenantName.toLowerCase().includes('federal');
+      const isFederal = session.user.tenantType === 'FEDERAL';
       setIsFederalUser(isFederal);
       
       // If not federal user, auto-populate incident state with user's state
@@ -155,16 +192,30 @@ export default function NewCasePage() {
         const lgas = getLGAsByState(userTenantName);
         setAvailableLGAs(lgas);
       }
-      
-      // Auto-generate MOJ File Number
-      const stateCode = getStateCodeFromName(userTenantName);
-      const mojNumber = generateMOJFileNumber(stateCode);
-      setFormData(prev => ({
-        ...prev,
-        mojCaseNumber: mojNumber
-      }));
     }
   }, [session]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const isFederal = session.user.tenantType === 'FEDERAL';
+    const userTenantName = session.user.tenantName || '';
+    const stateNameForMoj = isFederal ? formData.incidentState : userTenantName;
+
+    if (!stateNameForMoj) return;
+
+    const stateCode = getStateCodeFromName(stateNameForMoj);
+    const mojNumber = generateMOJFileNumber(stateCode);
+
+    setFormData((prev) =>
+      prev.mojCaseNumber === mojNumber
+        ? prev
+        : {
+            ...prev,
+            mojCaseNumber: mojNumber,
+          }
+    );
+  }, [session, formData.incidentState]);
 
   // Update available LGAs when incident state changes
   useEffect(() => {
@@ -178,7 +229,46 @@ export default function NewCasePage() {
     } else {
       setAvailableLGAs([]);
     }
-  }, [formData.incidentState]);
+  }, [formData.incidentState, formData.incidentLga]);
+
+  useEffect(() => {
+    if (!formData.offence.offenceName) return;
+
+    const selected = offenceRefs.find(
+      (o) => o.offenceName === formData.offence.offenceName
+    );
+
+    if (!selected) return;
+
+    const offenceCode = selected.section || '';
+    const applicableLaw = selected.act
+      ? `${selected.section} ${selected.act}`
+      : selected.law
+        ? `${selected.section} ${selected.law}`
+        : selected.section || '';
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        offence: {
+          ...prev.offence,
+          offenceCode,
+          applicableLaw,
+          penalty: prev.offence.penalty || selected.penalty || '',
+        },
+      };
+
+      if (
+        next.offence.offenceCode === prev.offence.offenceCode &&
+        next.offence.applicableLaw === prev.offence.applicableLaw &&
+        next.offence.penalty === prev.offence.penalty
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [formData.offence.offenceName]);
 
   // Step validation functions
   const validateStep0 = (): { isValid: boolean; errors: string[] } => {
@@ -186,6 +276,9 @@ export default function NewCasePage() {
     if (!formData.title.trim()) errors.push('Case Title is required');
     if (!formData.description.trim()) errors.push('Case Description is required');
     if (!formData.incidentDate) errors.push('Incident Date is required');
+    if (formData.incidentDate && !parseDdMmYyyyToDate(formData.incidentDate)) {
+      errors.push('Incident Date must be in DD-MM-YYYY format');
+    }
     if (!formData.incidentState) errors.push('Incident State is required');
     if (!formData.incidentLga) errors.push('Incident LGA is required');
     return { isValid: errors.length === 0, errors };
@@ -213,7 +306,19 @@ export default function NewCasePage() {
 
   const validateStep3 = (): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
+    if (!formData.offence.offenceName.trim()) errors.push('Offence Name is required');
+    if (!formData.offence.offenceCode.trim()) errors.push('Offence Code is required');
+    if (!formData.offence.applicableLaw.trim()) errors.push('Applicable Law is required');
     if (!formData.offence.dateOfOffence) errors.push('Date of Offence is required');
+    if (formData.offence.dateOfOffence && !parseDdMmYyyyToDate(formData.offence.dateOfOffence)) {
+      errors.push('Date of Offence must be in DD-MM-YYYY format');
+    }
+    if (formData.offence.dateReported && !parseDdMmYyyyToDate(formData.offence.dateReported)) {
+      errors.push('Date Reported must be in DD-MM-YYYY format');
+    }
+    if (formData.offence.dateArrested && !parseDdMmYyyyToDate(formData.offence.dateArrested)) {
+      errors.push('Date Arrested must be in DD-MM-YYYY format');
+    }
     if (!formData.offence.placeOfOffence.trim()) errors.push('Place of Offence is required');
     if (!formData.offence.natureOfOffence.trim()) errors.push('Nature of Offence is required');
     if ((formData.legalServiceType === 'PROSECUTION' || formData.legalServiceType === 'FORENSIC_INTERVIEW') && !formData.chargeNumber.trim()) {
@@ -262,14 +367,17 @@ export default function NewCasePage() {
       return;
     }
 
-    setIsSubmitting(true);
-
     try {
+      const incidentDateParsed = parseDdMmYyyyToDate(formData.incidentDate);
+      const victimDobParsed = formData.victim.dateOfBirth ? parseDdMmYyyyToDate(formData.victim.dateOfBirth) : null;
+      const perpetratorDobParsed = formData.perpetrator.dateOfBirth ? parseDdMmYyyyToDate(formData.perpetrator.dateOfBirth) : null;
+      const offenceDateParsed = formData.offence.dateOfOffence ? parseDdMmYyyyToDate(formData.offence.dateOfOffence) : null;
+
       // Prepare the data payload
       const payload = {
         title: formData.title,
         description: formData.description,
-        incidentDate: formData.incidentDate ? new Date(formData.incidentDate).toISOString() : new Date().toISOString(),
+        incidentDate: incidentDateParsed ? incidentDateParsed.toISOString() : new Date().toISOString(),
         incidentState: formData.incidentState,
         incidentLga: formData.incidentLga,
         incidentAddress: formData.incidentAddress,
@@ -281,9 +389,7 @@ export default function NewCasePage() {
           lastName: formData.victim.name?.split(' ').slice(1).join(' ') || '',
           age: parseInt(formData.victim.age?.toString() || '0'),
           gender: formData.victim.gender,
-          dateOfBirth: formData.victim.dateOfBirth 
-            ? new Date(formData.victim.dateOfBirth).toISOString() 
-            : null,
+          dateOfBirth: victimDobParsed ? victimDobParsed.toISOString() : null,
           phoneNumber: formData.victim.phoneNumber || null,
           email: formData.victim.email || null,
           address: formData.victim.address || null,
@@ -299,9 +405,7 @@ export default function NewCasePage() {
           lastName: formData.perpetrator.name?.split(' ').slice(1).join(' ') || '',
           age: formData.perpetrator.age ? parseInt(formData.perpetrator.age.toString()) : null,
           gender: formData.perpetrator.gender,
-          dateOfBirth: formData.perpetrator.dateOfBirth 
-            ? new Date(formData.perpetrator.dateOfBirth).toISOString() 
-            : null,
+          dateOfBirth: perpetratorDobParsed ? perpetratorDobParsed.toISOString() : null,
           placeOfBirth: formData.perpetrator.placeOfBirth || null,
           phoneNumber: formData.perpetrator.phoneNumber || null,
           email: formData.perpetrator.email || null,
@@ -311,9 +415,7 @@ export default function NewCasePage() {
           previousCriminalHistory: formData.perpetrator.previousCriminalHistory || null,
         },
         offence: {
-          dateOfOffence: formData.offence.dateOfOffence 
-            ? new Date(formData.offence.dateOfOffence).toISOString() 
-            : null,
+          dateOfOffence: offenceDateParsed ? offenceDateParsed.toISOString() : null,
           placeOfOffence: formData.offence.placeOfOffence || null,
           natureOfOffence: formData.offence.natureOfOffence || '',
           offenceName: formData.offence.offenceName || formData.offence.natureOfOffence || 'Offence',
@@ -332,27 +434,44 @@ export default function NewCasePage() {
         toast.error('Case created but no ID returned');
         router.push('/dashboard/cases');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Case creation error:', error);
-      console.error('Error response:', error.response?.data);
+      if (axios.isAxiosError(error)) {
+        console.error('Error response:', error.response?.data);
+      }
       
       let errorMessage = 'Failed to create case';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-        if (error.response.data.details) {
-          if (Array.isArray(error.response.data.details)) {
-            errorMessage += ': ' + error.response.data.details.map((d: any) => d.message || d).join(', ');
-          } else if (typeof error.response.data.details === 'string') {
-            errorMessage += ': ' + error.response.data.details;
-          }
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as
+          | { error?: string; details?: unknown }
+          | undefined;
+
+        if (data?.error) {
+          errorMessage = data.error;
         }
-      } else if (error.message) {
+
+        const details = data?.details;
+        if (Array.isArray(details)) {
+          const detailText = details
+            .map((d) => {
+              if (typeof d === 'string') return d;
+              if (d && typeof d === 'object' && 'message' in d && typeof (d as { message?: unknown }).message === 'string') {
+                return (d as { message: string }).message;
+              }
+              return String(d);
+            })
+            .join(', ');
+          if (detailText) {
+            errorMessage += `: ${detailText}`;
+          }
+        } else if (typeof details === 'string' && details) {
+          errorMessage += `: ${details}`;
+        }
+      } else if (error instanceof Error) {
         errorMessage = error.message;
       }
       
       toast.error(errorMessage);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -427,13 +546,14 @@ export default function NewCasePage() {
                   Incident Date *
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   required
                   value={formData.incidentDate}
                   onChange={(e) =>
                     setFormData({ ...formData, incidentDate: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="DD-MM-YYYY"
                 />
               </div>
               <div>
@@ -1021,18 +1141,19 @@ export default function NewCasePage() {
                           Bail Release Date *
                         </label>
                         <input
-                          type="date"
+                          type="text"
                           required
                           value={formData.bailReleaseDate}
                           onChange={(e) =>
                             setFormData({ ...formData, bailReleaseDate: e.target.value })
                           }
                           className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                          placeholder="DD-MM-YYYY"
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Surety's NIN *
+                          Surety&apos;s NIN *
                         </label>
                         <input
                           type="text"
@@ -1046,7 +1167,7 @@ export default function NewCasePage() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Surety's Phone Number *
+                          Surety&apos;s Phone Number *
                         </label>
                         <input
                           type="tel"
@@ -1077,8 +1198,7 @@ export default function NewCasePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Offence Name *
                 </label>
-                <input
-                  type="text"
+                <select
                   required
                   value={formData.offence.offenceName}
                   onChange={(e) =>
@@ -1088,7 +1208,25 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                />
+                >
+                  <option value="">-- Select an offence --</option>
+                  {Object.entries(
+                    offenceRefs.reduce((acc: Record<string, OffenceRef[]>, offence) => {
+                      const category = offence.offenceCategory || 'Other';
+                      if (!acc[category]) acc[category] = [];
+                      acc[category].push(offence);
+                      return acc;
+                    }, {})
+                  ).map(([category, offences]) => (
+                    <optgroup key={category} label={category}>
+                      {offences.map((offence, idx) => (
+                        <option key={`${category}-${idx}`} value={offence.offenceName}>
+                          {offence.offenceName} ({offence.section})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1098,13 +1236,8 @@ export default function NewCasePage() {
                 <input
                   type="text"
                   value={formData.offence.offenceCode}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      offence: { ...formData.offence, offenceCode: e.target.value },
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:ring-2 focus:ring-green-500"
                 />
               </div>
 
@@ -1113,7 +1246,7 @@ export default function NewCasePage() {
                   Date of Offence
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   value={formData.offence.dateOfOffence}
                   onChange={(e) =>
                     setFormData({
@@ -1122,6 +1255,7 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="DD-MM-YYYY"
                 />
               </div>
 
@@ -1130,7 +1264,7 @@ export default function NewCasePage() {
                   Date Reported
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   value={formData.offence.dateReported}
                   onChange={(e) =>
                     setFormData({
@@ -1139,6 +1273,7 @@ export default function NewCasePage() {
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="DD-MM-YYYY"
                 />
               </div>
 
@@ -1149,13 +1284,8 @@ export default function NewCasePage() {
                 <input
                   type="text"
                   value={formData.offence.applicableLaw}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      offence: { ...formData.offence, applicableLaw: e.target.value },
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:ring-2 focus:ring-green-500"
                   placeholder="e.g., Section 1 VAPPA"
                 />
               </div>
@@ -1208,7 +1338,7 @@ export default function NewCasePage() {
                     Date Arrested
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     value={formData.offence.dateArrested}
                     onChange={(e) =>
                       setFormData({
@@ -1220,6 +1350,7 @@ export default function NewCasePage() {
                       })
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    placeholder="DD-MM-YYYY"
                   />
                 </div>
               )}
@@ -1314,12 +1445,13 @@ export default function NewCasePage() {
                   Date Charged
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   value={formData.dateCharged}
                   onChange={(e) =>
                     setFormData({ ...formData, dateCharged: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="DD-MM-YYYY"
                 />
               </div>
 
@@ -1328,12 +1460,13 @@ export default function NewCasePage() {
                   Date Filed in Court
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   value={formData.dateFiledInCourt}
                   onChange={(e) =>
                     setFormData({ ...formData, dateFiledInCourt: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="DD-MM-YYYY"
                 />
               </div>
 
@@ -1356,12 +1489,13 @@ export default function NewCasePage() {
                   Date of Arraignment
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   value={formData.dateOfArraignment}
                   onChange={(e) =>
                     setFormData({ ...formData, dateOfArraignment: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  placeholder="DD-MM-YYYY"
                 />
               </div>
 
@@ -1418,19 +1552,20 @@ export default function NewCasePage() {
                       Bail Release Date *
                     </label>
                     <input
-                      type="date"
+                      type="text"
                       required
                       value={formData.bailReleaseDate}
                       onChange={(e) =>
                         setFormData({ ...formData, bailReleaseDate: e.target.value })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="DD-MM-YYYY"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Surety's NIN *
+                      Surety&apos;s NIN *
                     </label>
                     <input
                       type="text"
@@ -1445,7 +1580,7 @@ export default function NewCasePage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Surety's Phone Number *
+                      Surety&apos;s Phone Number *
                     </label>
                     <input
                       type="tel"
@@ -1470,6 +1605,30 @@ export default function NewCasePage() {
             </CardHeader>
             <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.victimDied}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        victimDied: e.target.checked,
+                        ...(e.target.checked
+                          ? {}
+                          : {
+                              autopsyReport: '',
+                              autopsyReportUpload: null,
+                            }),
+                      })
+                    }
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Victim died
+                  </span>
+                </label>
+              </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Medical Report
@@ -1505,41 +1664,45 @@ export default function NewCasePage() {
                   </p>
                 )}
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Autopsy Report
-                </label>
-                <textarea
-                  value={formData.autopsyReport}
-                  onChange={(e) =>
-                    setFormData({ ...formData, autopsyReport: e.target.value })
-                  }
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                  placeholder="Enter autopsy report details..."
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Autopsy Report Upload
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      autopsyReportUpload: e.target.files?.[0] || null,
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
-                />
-                {formData.autopsyReportUpload && (
-                  <p className="mt-2 text-sm text-gray-600">
-                    Selected: {formData.autopsyReportUpload.name}
-                  </p>
-                )}
-              </div>
+              {formData.victimDied && (
+                <>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Autopsy Report
+                    </label>
+                    <textarea
+                      value={formData.autopsyReport}
+                      onChange={(e) =>
+                        setFormData({ ...formData, autopsyReport: e.target.value })
+                      }
+                      rows={3}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="Enter autopsy report details..."
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Autopsy Report Upload
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          autopsyReportUpload: e.target.files?.[0] || null,
+                        })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                    />
+                    {formData.autopsyReportUpload && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        Selected: {formData.autopsyReportUpload.name}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
           </Card>
@@ -1618,7 +1781,7 @@ export default function NewCasePage() {
                       Transfer Date
                     </label>
                     <input
-                      type="date"
+                      type="text"
                       value={formData.chainOfCustody.transferDate}
                       onChange={(e) =>
                         setFormData({
@@ -1630,6 +1793,7 @@ export default function NewCasePage() {
                         })
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                      placeholder="DD-MM-YYYY"
                     />
                   </div>
                   <div>

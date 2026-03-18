@@ -19,9 +19,7 @@ import {
   Search,
   RefreshCw,
   X,
-  Paperclip,
   Users,
-  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -37,7 +35,7 @@ interface Email {
   recipientEmails: string[];
   ccIds: string[];
   bccIds: string[];
-  attachments: any[];
+  attachments: unknown[];
   isRead: boolean;
   isStarred: boolean;
   isArchived: boolean;
@@ -54,6 +52,10 @@ interface Email {
   sentAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 interface User {
@@ -108,7 +110,10 @@ export default function EmailPage() {
       const usersData = response.data.users || [];
       
       // Filter out current user
-      const filteredUsers = usersData.filter((user: any) => user.id !== session?.user?.id);
+      const filteredUsers = (usersData as unknown[]).filter((user) => {
+        const row = isRecord(user) ? user : {};
+        return typeof row.id === 'string' && row.id !== session?.user?.id;
+      }) as User[];
       
       setUsers(filteredUsers);
     } catch (error) {

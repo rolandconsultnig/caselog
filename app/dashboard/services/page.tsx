@@ -22,7 +22,7 @@ interface Service {
 }
 
 export default function ServicesPage() {
-  const { data: session } = useSession();
+  useSession();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -43,8 +43,8 @@ export default function ServicesPage() {
         const data = await response.json();
         setServices(data.services);
       }
-    } catch (error) {
-      console.error('Error fetching services:', error);
+    } catch {
+      console.error('Error fetching services');
     } finally {
       setLoading(false);
     }

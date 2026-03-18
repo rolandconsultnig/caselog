@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions, canAccessCase } from '@/lib/permissions';
 import { logAudit } from '@/lib/utils';
-import { TenantType, CaseStatus } from '@prisma/client';
+import { TenantType } from '@prisma/client';
 
 // GET /api/cases/[id] - Get single case
 export async function GET(
@@ -54,6 +54,14 @@ export async function GET(
           },
         },
         investigator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        prosecutor: {
           select: {
             id: true,
             firstName: true,

@@ -1,14 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
+
+interface PhotoUploadResult {
+  facialData: {
+    facialRecognitionId: string;
+    confidence: number;
+    imageQuality: number;
+  };
+  perpetrator: {
+    biometricVerified: boolean;
+  };
+  matches: {
+    found: boolean;
+    count: number;
+  };
+}
 
 interface PhotoUploadProps {
   perpetratorId: string;
   existingPhoto?: string;
-  onUploadComplete?: (data: any) => void;
+  onUploadComplete?: (data: PhotoUploadResult) => void;
 }
 
 export default function PerpetratorPhotoUpload({
@@ -18,7 +32,7 @@ export default function PerpetratorPhotoUpload({
 }: PhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(existingPhoto || null);
-  const [uploadResult, setUploadResult] = useState<any>(null);
+  const [uploadResult, setUploadResult] = useState<PhotoUploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,14 +80,15 @@ export default function PerpetratorPhotoUpload({
         throw new Error(errorData.error || 'Upload failed');
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as PhotoUploadResult;
       setUploadResult(data);
       
       if (onUploadComplete) {
         onUploadComplete(data);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to upload photo');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+      setError(message || 'Failed to upload photo');
     } finally {
       setUploading(false);
     }

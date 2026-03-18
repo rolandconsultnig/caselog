@@ -23,7 +23,7 @@ interface NGOPartnership {
 }
 
 export default function NGOPartnershipsPage() {
-  const { data: session } = useSession();
+  useSession();
   const [partnerships, setPartnerships] = useState<NGOPartnership[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('active');
@@ -68,7 +68,7 @@ export default function NGOPartnershipsPage() {
       case 'EXCELLENT': return 'success';
       case 'GOOD': return 'info';
       case 'FAIR': return 'warning';
-      case 'POOR': return 'error';
+      case 'POOR': return 'danger';
       default: return 'default';
     }
   };

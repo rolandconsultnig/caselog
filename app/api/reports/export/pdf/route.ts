@@ -1,9 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+
+type DetailedReportItem = {
+  caseNumber?: string;
+  victims?: Array<{ firstName?: string; lastName?: string }>;
+  caseType?: string | null;
+  status?: string;
+  createdAt?: string | Date;
+};
+
+type PdfExportBody = {
+  reportData?: unknown;
+  reportType?: unknown;
+  filters?: unknown;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +25,11 @@ export async function POST(request: NextRequest) {
       return new Response('Unauthorized', { status: 401 });
     }
 
-    const body = await request.json();
-    const { reportData, reportType, filters } = body;
+    const body = (await request.json()) as PdfExportBody;
+    const reportType = typeof body.reportType === 'string' ? body.reportType : '';
+    const reportData: DetailedReportItem[] = Array.isArray(body.reportData)
+      ? (body.reportData as DetailedReportItem[])
+      : [];
 
     const doc = new jsPDF();
 
@@ -25,20 +41,25 @@ export async function POST(request: NextRequest) {
 
     if (reportType === 'Detailed') {
       const tableColumn = ["Case Number", "Victim", "Type", "Status", "Date"];
-      const tableRows: any[] = [];
+      const tableRows: Array<[string, string, string, string, string]> = [];
 
-      reportData.forEach((item: any) => {
-        const row = [
-          item.caseNumber,
-          item.victims?.[0] ? `${item.victims[0].firstName} ${item.victims[0].lastName}` : 'N/A',
+      reportData.forEach((item) => {
+        const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+        const victim = item.victims?.[0]
+          ? `${item.victims[0].firstName ?? ''} ${item.victims[0].lastName ?? ''}`.trim()
+          : 'N/A';
+
+        const row: [string, string, string, string, string] = [
+          item.caseNumber ?? 'N/A',
+          victim || 'N/A',
           item.caseType || 'N/A',
-          item.status,
-          new Date(item.createdAt).toLocaleDateString(),
+          item.status ?? 'N/A',
+          createdAt ? createdAt.toLocaleDateString() : 'N/A',
         ];
         tableRows.push(row);
       });
 
-      (doc as any).autoTable({
+      (doc as unknown as { autoTable: (options: unknown) => void }).autoTable({
         head: [tableColumn],
         body: tableRows,
         startY: 40,

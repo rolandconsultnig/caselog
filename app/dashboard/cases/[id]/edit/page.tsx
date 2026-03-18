@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -16,7 +15,6 @@ import axios from 'axios';
 export default function EditCasePage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -30,11 +28,7 @@ export default function EditCasePage() {
     status: 'NEW',
   });
 
-  useEffect(() => {
-    fetchCaseData();
-  }, [params.id]);
-
-  const fetchCaseData = async () => {
+  const fetchCaseData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.get(`/api/cases/${params.id}`);
@@ -58,7 +52,11 @@ export default function EditCasePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchCaseData();
+  }, [fetchCaseData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -83,9 +81,12 @@ export default function EditCasePage() {
       
       toast.success('Case updated successfully');
       router.push(`/dashboard/cases/${params.id}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating case:', error);
-      toast.error(error.response?.data?.error || 'Failed to update case');
+      const message = axios.isAxiosError(error)
+        ? (error.response?.data as { error?: string } | undefined)?.error
+        : undefined;
+      toast.error(message || 'Failed to update case');
     } finally {
       setSaving(false);
     }

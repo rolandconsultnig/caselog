@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
-import { NewsStatus } from '@prisma/client';
+import { NewsStatus, Prisma } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -82,7 +82,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Article not found' }, { status: 404 });
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.NewsArticleUpdateInput = {};
     if (title !== undefined) updateData.title = title;
     if (excerpt !== undefined) updateData.excerpt = excerpt;
     if (content !== undefined) updateData.content = content;
@@ -111,7 +111,7 @@ export async function PATCH(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'UPDATE',
-        entityType: 'NEWS_ARTICLE',
+        entityType: 'SYSTEM',
         entityId: article.id,
         entityName: `News article '${article.title}' updated`,
       },
@@ -162,7 +162,7 @@ export async function DELETE(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'DELETE',
-        entityType: 'NEWS_ARTICLE',
+        entityType: 'SYSTEM',
         entityId: params.id,
         entityName: `News article '${article.title}' deleted`,
       },

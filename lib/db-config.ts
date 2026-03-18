@@ -185,7 +185,7 @@ export const buildTenantFilter = (tenantId: string, isFederal: boolean = false) 
 };
 
 export const buildDateFilter = (startDate?: string, endDate?: string) => {
-  const filter: any = {};
+  const filter: { gte?: Date; lte?: Date } = {};
   
   if (startDate) {
     filter.gte = new Date(startDate);

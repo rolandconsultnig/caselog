@@ -13,6 +13,38 @@ import Link from 'next/link';
 import axios from 'axios';
 import { formatDate, formatDateTime } from '@/lib/utils';
 
+type CaseEntityBase = {
+  id: string;
+  [key: string]: unknown;
+};
+
+type VictimEntity = CaseEntityBase & {
+  firstName?: string;
+  lastName?: string;
+};
+
+type PerpetratorEntity = CaseEntityBase & {
+  firstName?: string;
+  lastName?: string;
+};
+
+type CourtRecordEntity = CaseEntityBase & {
+  offenceName?: string;
+};
+
+type WitnessEntity = CaseEntityBase & {
+  firstName?: string;
+  lastName?: string;
+};
+
+type EvidenceEntity = CaseEntityBase & {
+  evidenceName?: string;
+};
+
+type ServiceEntity = CaseEntityBase & {
+  serviceType?: string;
+};
+
 export default function CaseOverviewPage() {
   const params = useParams();
   const { data: session } = useSession();
@@ -62,10 +94,12 @@ export default function CaseOverviewPage() {
     { id: 'services', label: 'Services' },
   ];
 
-  const InfoField = ({ label, value }: { label: string; value: any }) => (
+  const InfoField = ({ label, value }: { label: string; value: unknown }) => (
     <div>
       <label className="text-sm font-medium text-gray-600">{label}</label>
-      <p className="text-base text-gray-900 mt-1">{value || 'N/A'}</p>
+      <p className="text-base text-gray-900 mt-1">
+        {value == null || value === '' ? 'N/A' : typeof value === 'string' || typeof value === 'number' ? String(value) : 'N/A'}
+      </p>
     </div>
   );
 
@@ -186,10 +220,12 @@ export default function CaseOverviewPage() {
           {activeTab === 'victims' && (
             <div className="space-y-4">
               {caseData.victims && caseData.victims.length > 0 ? (
-                caseData.victims.map((victim: any, index: number) => (
+                (caseData.victims as VictimEntity[]).map((victim, index: number) => (
                   <Card key={victim.id}>
                     <CardHeader>
-                      <CardTitle>Victim {index + 1}: {victim.firstName} {victim.lastName}</CardTitle>
+                      <CardTitle>
+                        Victim {index + 1}: {victim.firstName || ''} {victim.lastName || ''}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -239,10 +275,12 @@ export default function CaseOverviewPage() {
           {activeTab === 'perpetrators' && (
             <div className="space-y-4">
               {caseData.perpetrators && caseData.perpetrators.length > 0 ? (
-                caseData.perpetrators.map((perp: any, index: number) => (
+                (caseData.perpetrators as PerpetratorEntity[]).map((perp, index: number) => (
                   <Card key={perp.id}>
                     <CardHeader>
-                      <CardTitle>Perpetrator {index + 1}: {perp.firstName} {perp.lastName}</CardTitle>
+                      <CardTitle>
+                        Perpetrator {index + 1}: {perp.firstName || ''} {perp.lastName || ''}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -295,10 +333,10 @@ export default function CaseOverviewPage() {
           {activeTab === 'offences' && (
             <div className="space-y-4">
               {caseData.courtRecords && caseData.courtRecords.length > 0 ? (
-                caseData.courtRecords.map((record: any, index: number) => (
+                (caseData.courtRecords as CourtRecordEntity[]).map((record, index: number) => (
                   <Card key={record.id}>
                     <CardHeader>
-                      <CardTitle>Offence {index + 1}: {record.offenceName}</CardTitle>
+                      <CardTitle>Offence {index + 1}: {record.offenceName || ''}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -360,10 +398,12 @@ export default function CaseOverviewPage() {
           {activeTab === 'witnesses' && (
             <div className="space-y-4">
               {caseData.witnesses && caseData.witnesses.length > 0 ? (
-                caseData.witnesses.map((witness: any, index: number) => (
+                (caseData.witnesses as WitnessEntity[]).map((witness, index: number) => (
                   <Card key={witness.id}>
                     <CardHeader>
-                      <CardTitle>Witness {index + 1}: {witness.firstName} {witness.lastName}</CardTitle>
+                      <CardTitle>
+                        Witness {index + 1}: {witness.firstName || ''} {witness.lastName || ''}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -469,10 +509,10 @@ export default function CaseOverviewPage() {
           {activeTab === 'evidence' && (
             <div className="space-y-4">
               {caseData.evidence && caseData.evidence.length > 0 ? (
-                caseData.evidence.map((item: any, index: number) => (
+                (caseData.evidence as EvidenceEntity[]).map((item, index: number) => (
                   <Card key={item.id}>
                     <CardHeader>
-                      <CardTitle>Evidence {index + 1}: {item.evidenceName}</CardTitle>
+                      <CardTitle>Evidence {index + 1}: {item.evidenceName || ''}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -574,10 +614,10 @@ export default function CaseOverviewPage() {
           {activeTab === 'services' && (
             <div className="space-y-4">
               {caseData.services && caseData.services.length > 0 ? (
-                caseData.services.map((service: any, index: number) => (
+                (caseData.services as ServiceEntity[]).map((service, index: number) => (
                   <Card key={service.id}>
                     <CardHeader>
-                      <CardTitle>Service {index + 1}: {service.serviceType}</CardTitle>
+                      <CardTitle>Service {index + 1}: {service.serviceType || ''}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

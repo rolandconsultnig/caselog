@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -22,16 +21,10 @@ interface Evidence {
 
 export default function CaseEvidencePage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchEvidence();
-  }, [params.id]);
-
-  const fetchEvidence = async () => {
+  const fetchEvidence = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/evidence`);
       if (response.ok) {
@@ -43,14 +36,18 @@ export default function CaseEvidencePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchEvidence();
+  }, [fetchEvidence]);
 
   const getEvidenceTypeColor = (type: string) => {
     switch (type) {
       case 'PHYSICAL': return 'default';
       case 'DIGITAL': return 'info';
       case 'DOCUMENTARY': return 'warning';
-      case 'FORENSIC': return 'error';
+      case 'FORENSIC': return 'danger';
       default: return 'default';
     }
   };

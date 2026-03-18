@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // GET - Fetch single email
 export async function GET(
@@ -85,7 +86,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    let updateData: any = {};
+    const updateData: Prisma.InternalEmailUpdateInput = {};
 
     switch (action) {
       case 'star':

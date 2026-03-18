@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { uploadFile, getFileTypeCategory, FileUploadOptions } from '@/lib/file-upload';
 import { emailService, emailTemplates } from '@/lib/email-service';
+import { Prisma } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +20,7 @@ export async function GET(
     const relatedEntityType = searchParams.get('relatedEntityType');
     const relatedEntityId = searchParams.get('relatedEntityId');
 
-    const where: any = { caseId: params.id };
+    const where: Prisma.CaseFileWhereInput = { caseId: params.id };
     if (relatedEntityType && relatedEntityId) {
       where.relatedEntityType = relatedEntityType;
       where.relatedEntityId = relatedEntityId;
@@ -104,14 +105,14 @@ export async function POST(
         caseId: params.id,
         fileName: uploadResult.fileName,
         originalFileName: uploadResult.originalFileName,
-        fileType: fileType as any,
+        fileType: fileType as unknown as Prisma.CaseFileCreateInput['fileType'],
         mimeType: uploadResult.mimeType,
         fileSize: uploadResult.fileSize,
         filePath: uploadResult.filePath,
         fileUrl: uploadResult.fileUrl,
         thumbnailUrl: uploadResult.thumbnailUrl,
         storageProvider: 'LOCAL',
-        accessLevel: accessLevel as any,
+        accessLevel: accessLevel as unknown as Prisma.CaseFileCreateInput['accessLevel'],
         encrypted: true,
         virusScanned: false,
         virusScanResult: 'NOT_SCANNED',
@@ -133,7 +134,7 @@ export async function POST(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'CASE_FILE',
+        entityType: 'DOCUMENT',
         entityId: document.id,
         entityName: `Document "${uploadResult.originalFileName}" uploaded to case ${params.id}`,
       },
@@ -177,10 +178,10 @@ export async function POST(
     }
 
     return NextResponse.json({ document });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error uploading document:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to upload document' },
+      { error: error instanceof Error ? error.message : 'Failed to upload document' },
       { status: 500 }
     );
   }

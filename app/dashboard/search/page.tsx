@@ -8,21 +8,70 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import { Search, Filter, Save, Clock, X, Eye, FileText, User, Shield, FolderOpen } from 'lucide-react';
+import { Search, Filter, Save, Clock, X, FileText, User, Shield, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { NIGERIAN_STATES } from '@/lib/nigerian-locations';
 
 interface SearchResult {
-  cases: any[];
-  victims: any[];
-  suspects: any[];
-  evidence: any[];
-  documents: any[];
+  cases: Array<{
+    id: string;
+    caseNumber?: string;
+    mojFileNumber?: string;
+    incidentLocation?: string;
+    status?: string;
+    priority?: string;
+  }>;
+  victims: Array<{
+    id: string;
+    caseId: string;
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+  }>;
+  suspects: Array<{
+    id: string;
+    caseId: string;
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+  }>;
+  evidence: Array<{
+    id: string;
+    caseId: string;
+    evidenceNumber?: string;
+    description?: string;
+  }>;
+  documents: Array<{
+    id: string;
+    caseId: string;
+    originalFileName?: string;
+    description?: string;
+    fileType?: string;
+  }>;
+}
+
+interface SavedSearch {
+  id: string;
+  name: string;
+  searchQuery: string;
+  searchType: string;
+  filters?: Record<string, string>;
+}
+
+interface SearchHistoryEntry {
+  id: string;
+  searchQuery: string;
+  searchType: string;
+  createdAt: string;
 }
 
 export default function AdvancedSearchPage() {
-  const { data: session } = useSession();
+  useSession();
   const [query, setQuery] = useState('');
   const [searchType, setSearchType] = useState('all');
   const [filters, setFilters] = useState({
@@ -42,8 +91,8 @@ export default function AdvancedSearchPage() {
     documents: [],
   });
   const [loading, setLoading] = useState(false);
-  const [savedSearches, setSavedSearches] = useState<any[]>([]);
-  const [searchHistory, setSearchHistory] = useState<any[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
 
@@ -99,7 +148,14 @@ export default function AdvancedSearchPage() {
       const response = await fetch(`/api/search?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setResults(data.results || {});
+        const nextResults = (data.results || {}) as Partial<SearchResult>;
+        setResults({
+          cases: nextResults.cases ?? [],
+          victims: nextResults.victims ?? [],
+          suspects: nextResults.suspects ?? [],
+          evidence: nextResults.evidence ?? [],
+          documents: nextResults.documents ?? [],
+        });
         fetchSearchHistory();
       } else {
         toast.error('Search failed');
@@ -145,10 +201,18 @@ export default function AdvancedSearchPage() {
     }
   };
 
-  const loadSavedSearch = (saved: any) => {
+  const loadSavedSearch = (saved: SavedSearch) => {
     setQuery(saved.searchQuery);
     setSearchType(saved.searchType);
-    setFilters(saved.filters || {});
+    setFilters({
+      status: saved.filters?.status || '',
+      priority: saved.filters?.priority || '',
+      caseType: saved.filters?.caseType || '',
+      dateFrom: saved.filters?.dateFrom || '',
+      dateTo: saved.filters?.dateTo || '',
+      state: saved.filters?.state || '',
+      lga: saved.filters?.lga || '',
+    });
     performSearch();
   };
 
@@ -316,8 +380,8 @@ export default function AdvancedSearchPage() {
                   <SelectContent>
                     <SelectItem value="">All States</SelectItem>
                     {NIGERIAN_STATES.map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
+                      <SelectItem key={state.code} value={state.name}>
+                        {state.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

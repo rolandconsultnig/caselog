@@ -29,7 +29,7 @@ export default function NewWitnessPage() {
       try {
         const response = await axios.get('/api/cases');
         setCases(response.data.cases);
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch cases');
       }
     };
@@ -56,11 +56,15 @@ export default function NewWitnessPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await axios.post('/api/witnesses', formData);
+      await axios.post('/api/witnesses', formData);
       toast.success('Witness created successfully');
       router.push(`/dashboard/witnesses`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create witness');
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      toast.error(message || 'Failed to create witness');
     } finally {
       setIsSubmitting(false);
     }

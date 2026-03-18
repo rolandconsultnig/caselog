@@ -302,10 +302,13 @@ export const UI_CONFIG = {
 // 🎯 Helper Functions
 export const getColor = (colorPath: string) => {
   const paths = colorPath.split('.');
-  let color: any = UI_CONFIG.theme.colors;
+  let color: unknown = UI_CONFIG.theme.colors;
   
   for (const path of paths) {
-    color = color[path];
+    if (typeof color !== 'object' || color === null) {
+      return undefined;
+    }
+    color = (color as Record<string, unknown>)[path];
   }
   
   return color;
@@ -377,7 +380,10 @@ export const responsive = {
 };
 
 // 🎯 Component Factory
-export const createComponentConfig = (name: keyof typeof UI_CONFIG.components, config: any) => {
+export const createComponentConfig = (
+  name: keyof typeof UI_CONFIG.components,
+  config: Record<string, unknown>
+) => {
   return {
     name,
     ...UI_CONFIG.components[name],

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
+
+type Reaction = {
+  emoji: string;
+  userId: string;
+  userName: string | null;
+  timestamp: string;
+};
 
 export async function POST(
   request: NextRequest,
@@ -24,9 +32,11 @@ export async function POST(
       return NextResponse.json({ error: 'Message not found' }, { status: 404 });
     }
 
-    const reactions = Array.isArray(message.reactions) ? message.reactions : [];
+    const reactions: Reaction[] = Array.isArray(message.reactions)
+      ? (message.reactions as unknown as Reaction[])
+      : [];
     const existingReactionIndex = reactions.findIndex(
-      (r: any) => r.userId === session.user.id && r.emoji === emoji
+      (r) => r.userId === session.user.id && r.emoji === emoji
     );
 
     if (existingReactionIndex >= 0) {
@@ -44,7 +54,7 @@ export async function POST(
 
     await prisma.chatMessage.update({
       where: { id: params.messageId },
-      data: { reactions: reactions as any },
+      data: { reactions: reactions as unknown as Prisma.InputJsonValue[] },
     });
 
     return NextResponse.json({ success: true });

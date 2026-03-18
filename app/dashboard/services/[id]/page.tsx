@@ -57,7 +57,7 @@ interface Service {
 export default function ServiceDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  useSession();
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -97,7 +97,7 @@ export default function ServiceDetailPage() {
           <div className="text-center py-12">
             <h3 className="text-lg font-medium text-gray-900">Service not found</h3>
             <p className="mt-2 text-sm text-gray-500">
-              The service you're looking for doesn't exist or you don't have access to it.
+              The service you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
             <div className="mt-6">
               <Link href="/dashboard/services">

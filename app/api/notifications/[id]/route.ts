@@ -35,10 +35,7 @@ export async function PATCH(
 }
 
 // DELETE /api/notifications/[id] - Delete notification
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {

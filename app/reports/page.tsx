@@ -9,8 +9,6 @@ import {
   TrendingUp, 
   MapPin, 
   ArrowLeft,
-  Download,
-  Calendar,
   AlertCircle,
   CheckCircle,
   Clock,
@@ -153,7 +151,7 @@ export default function PublicReportsPage() {
     // Monthly Trend
     csvContent += `Monthly Trend (Last 12 Months)\n`;
     csvContent += `Month,Cases\n`;
-    statistics.casesByMonth.slice().reverse().forEach((item: any) => {
+    statistics.casesByMonth.slice().reverse().forEach((item) => {
       const date = new Date(item.month + '-01');
       const monthName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
       csvContent += `${monthName},${item.count}\n`;
@@ -503,8 +501,8 @@ export default function PublicReportsPage() {
                 Cases Trend (Last 12 Months)
               </h3>
               <div className="space-y-3">
-                {statistics.casesByMonth.slice().reverse().map((item: any) => {
-                  const maxCount = Math.max(...statistics.casesByMonth.map((m: any) => m.count));
+                {statistics.casesByMonth.slice().reverse().map((item) => {
+                  const maxCount = Math.max(...statistics.casesByMonth.map((m) => m.count));
                   const percentage = maxCount > 0 ? ((item.count / maxCount) * 100).toFixed(1) : 0;
                   const date = new Date(item.month + '-01');
                   const monthName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -530,13 +528,15 @@ export default function PublicReportsPage() {
             {/* Disclaimer */}
             <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
               <div className="flex items-start gap-3">
-                <Image 
-                  src="/coat-of-arms.png" 
-                  alt="Nigerian Coat of Arms" 
-                  width={24} 
-                  height={24}
-                  className="flex-shrink-0 mt-1 object-contain"
-                />
+                <span className="relative w-6 h-6 flex-shrink-0 mt-1">
+                  <Image 
+                    src="/coat-of-arms.png" 
+                    alt="Nigerian Coat of Arms" 
+                    fill
+                    sizes="24px"
+                    className="object-contain"
+                  />
+                </span>
                 <div>
                   <h4 className="font-bold text-blue-900 mb-2">Data Privacy Notice</h4>
                   <p className="text-sm text-blue-800">
@@ -558,13 +558,15 @@ export default function PublicReportsPage() {
             © 2024 Federal Ministry of Justice, Nigeria. All rights reserved.
           </p>
           <div className="flex items-center justify-center gap-2 mt-2">
-            <Image 
-              src="/coat-of-arms.png" 
-              alt="Nigerian Coat of Arms" 
-              width={16} 
-              height={16}
-              className="object-contain"
-            />
+            <span className="relative w-4 h-4 inline-block align-middle">
+              <Image 
+                src="/coat-of-arms.png" 
+                alt="Nigerian Coat of Arms" 
+                fill
+                sizes="16px"
+                className="object-contain"
+              />
+            </span>
             <p className="text-sm text-gray-500">
               Sexual and Gender-Based Violence Information System
             </p>

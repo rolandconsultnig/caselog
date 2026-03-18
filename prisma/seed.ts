@@ -174,9 +174,10 @@ async function main() {
     for (let i = 0; i < federalLevels.length; i++) {
       const level = federalLevels[i];
       await prisma.user.upsert({
-        where: { email: `lagos.level${i + 1}@justice.lg.gov.ng` },
+        where: { username: `lagos.level${i + 1}` },
         update: {},
         create: {
+          username: `lagos.level${i + 1}`,
           email: `lagos.level${i + 1}@justice.lg.gov.ng`,
           password: defaultPassword,
           firstName: 'Lagos',
@@ -197,9 +198,10 @@ async function main() {
   if (fctState) {
     // FCT Super Admin
     await prisma.user.upsert({
-      where: { email: 'fct.superadmin@justice.gov.ng' },
+      where: { username: 'fct.superadmin' },
       update: {},
       create: {
+        username: 'fct.superadmin',
         email: 'fct.superadmin@justice.gov.ng',
         password: defaultPassword,
         firstName: 'FCT',
@@ -215,9 +217,10 @@ async function main() {
     for (let i = 0; i < federalLevels.length; i++) {
       const level = federalLevels[i];
       await prisma.user.upsert({
-        where: { email: `fct.level${i + 1}@justice.gov.ng` },
+        where: { username: `fct.level${i + 1}` },
         update: {},
         create: {
+          username: `fct.level${i + 1}`,
           email: `fct.level${i + 1}@justice.gov.ng`,
           password: defaultPassword,
           firstName: 'FCT',
@@ -235,16 +238,16 @@ async function main() {
   console.log('\n📋 Default Login Credentials:');
   console.log('================================');
   console.log('Password for all users: Password123!');
-  console.log('\nFederal Ministry of Justice:');
-  console.log('  Super Admin: federal.superadmin@moj.gov.ng');
-  console.log('  App Admin: federal.appadmin@moj.gov.ng');
-  console.log('  Level 1-5: federal.level1@moj.gov.ng to federal.level5@moj.gov.ng');
-  console.log('\nLagos State:');
-  console.log('  Super Admin: lagos.superadmin@justice.lg.gov.ng');
-  console.log('  Level 1-5: lagos.level1@justice.lg.gov.ng to lagos.level5@justice.lg.gov.ng');
-  console.log('\nFCT:');
-  console.log('  Super Admin: fct.superadmin@justice.gov.ng');
-  console.log('  Level 1-5: fct.level1@justice.gov.ng to fct.level5@justice.gov.ng');
+  console.log('\nFederal Ministry of Justice (use username to login):');
+  console.log('  Super Admin: federal.superadmin');
+  console.log('  App Admin: federal.appadmin');
+  console.log('  Level 1-5: federal.level1 to federal.level5');
+  console.log('\nLagos State (use username to login):');
+  console.log('  Super Admin: lagos.superadmin');
+  console.log('  Level 1-5: lagos.level1 to lagos.level5');
+  console.log('\nFCT (use username to login):');
+  console.log('  Super Admin: fct.superadmin');
+  console.log('  Level 1-5: fct.level1 to fct.level5');
   console.log('================================\n');
 }
 

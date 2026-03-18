@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -13,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const charge = await prisma.caseOffence.findUnique({
+    const charge = await prisma.courtRecord.findUnique({
       where: { id: params.chargeId },
     });
 
@@ -44,7 +45,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Check if charge exists
-    const existingCharge = await prisma.caseOffence.findUnique({
+    const existingCharge = await prisma.courtRecord.findUnique({
       where: { id: params.chargeId },
     });
 
@@ -53,40 +54,30 @@ export async function PATCH(
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Prisma.CourtRecordUpdateInput = {};
 
     // Handle plea update
     if (body.plea) {
       updateData.pleaType = body.plea.pleaType;
       updateData.pleaDate = body.plea.pleaDate ? new Date(body.plea.pleaDate) : null;
-      updateData.pleaDetails = body.plea.pleaDetails;
-      if (body.plea.pleaType) {
-        updateData.trialStatus = 'PLEA_RECORDED';
-      }
+      updateData.pleaBargainDetails = body.plea.pleaDetails;
     }
 
     // Handle trial update
     if (body.trial) {
-      updateData.courtDate = body.trial.courtDate ? new Date(body.trial.courtDate) : null;
-      updateData.courtLocation = body.trial.courtLocation;
-      updateData.judgeName = body.trial.judgeName;
-      updateData.prosecutorName = body.trial.prosecutorName;
-      updateData.defenseAttorneyName = body.trial.defenseAttorneyName;
-      if (body.trial.courtDate) {
-        updateData.trialStatus = 'TRIAL';
-      }
+      updateData.trialDate = body.trial.courtDate ? new Date(body.trial.courtDate) : null;
+      updateData.trialLocation = body.trial.courtLocation;
+      updateData.presidingJudge = body.trial.judgeName;
+      updateData.defenseAttorney = body.trial.defenseAttorneyName;
     }
 
     // Handle verdict update
     if (body.verdict) {
-      updateData.verdictType = body.verdict.verdictType;
+      updateData.verdict = body.verdict.verdictType;
       updateData.verdictDate = body.verdict.verdictDate ? new Date(body.verdict.verdictDate) : null;
       updateData.verdictDetails = body.verdict.verdictDetails;
       updateData.sentenceType = body.verdict.sentenceType;
       updateData.sentenceDetails = body.verdict.sentenceDetails;
-      if (body.verdict.verdictType) {
-        updateData.trialStatus = 'VERDICT';
-      }
     }
 
     // Handle appeal update
@@ -97,7 +88,7 @@ export async function PATCH(
     }
 
     // Update charge
-    const charge = await prisma.caseOffence.update({
+    const charge = await prisma.courtRecord.update({
       where: { id: params.chargeId },
       data: updateData,
     });
@@ -109,7 +100,7 @@ export async function PATCH(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'UPDATE',
-        entityType: 'CASE_OFFENCE',
+        entityType: 'CASE',
         entityId: charge.id,
         entityName: `Charge updated in case ${params.id}`,
       },

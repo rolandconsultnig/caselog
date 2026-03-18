@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { canAccessCase } from '@/lib/permissions';
 import { logAudit } from '@/lib/utils';
-import { Prisma, TenantType } from '@prisma/client';
+import { TenantType } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -16,24 +16,25 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only Level 3 can assign prosecutors
+    // Only Level 3 can assign investigators
     if (session.user.accessLevel !== 'LEVEL_3') {
-      return NextResponse.json({ 
-        error: 'Only Level 3 users can assign prosecutors' 
-      }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Only Level 3 users can assign investigators' },
+        { status: 403 }
+      );
     }
 
-    const { prosecutorId } = await request.json();
+    const { investigatorId } = await request.json();
 
-    if (!prosecutorId) {
-      return NextResponse.json({ 
-        error: 'Prosecutor ID is required' 
-      }, { status: 400 });
+    if (!investigatorId) {
+      return NextResponse.json(
+        { error: 'Investigator ID is required' },
+        { status: 400 }
+      );
     }
 
     const caseId = params.id;
 
-    // Check if case exists
     const existingCase = await prisma.case.findUnique({
       where: { id: caseId },
       select: {
@@ -59,15 +60,9 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (existingCase.status !== 'APPROVED') {
-      return NextResponse.json({ 
-        error: 'Case must be approved before assigning prosecutor' 
-      }, { status: 400 });
-    }
-
-    // Verify prosecutor exists and has PROSECUTOR role
-    const prosecutor = await prisma.user.findUnique({
-      where: { id: prosecutorId },
+    // Verify investigator exists and has INVESTIGATOR role
+    const investigator = await prisma.user.findUnique({
+      where: { id: investigatorId },
       select: {
         id: true,
         firstName: true,
@@ -77,48 +72,54 @@ export async function POST(
       },
     });
 
-    if (!prosecutor || prosecutor.accessLevel !== 'PROSECUTOR') {
-      return NextResponse.json({ error: 'Invalid prosecutor' }, { status: 400 });
+    if (!investigator || investigator.accessLevel !== 'INVESTIGATOR') {
+      return NextResponse.json({ error: 'Invalid investigator' }, { status: 400 });
     }
 
     // For state users, prevent cross-tenant assignment
-    if (session.user.tenantType !== 'FEDERAL' && prosecutor.tenantId !== existingCase.tenantId) {
+    if (session.user.tenantType !== 'FEDERAL' && investigator.tenantId !== existingCase.tenantId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Assign prosecutor
     const updatedCase = await prisma.case.update({
       where: { id: caseId },
       data: {
-        prosecutorId,
-        prosecutorAssignedAt: new Date(),
-        status: 'ACTIVE',
-      } as Prisma.CaseUpdateInput,
+        investigatorId,
+      },
+      include: {
+        investigator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
 
     await logAudit({
       userId: session.user.id,
       userName: session.user.name || session.user.email,
       userRole: session.user.accessLevel,
-      action: 'ASSIGN_PROSECUTOR',
+      action: 'ASSIGN',
       entityType: 'CASE',
       entityId: caseId,
       caseId,
-      description: `Assigned prosecutor ${prosecutor.firstName} ${prosecutor.lastName} to case ${existingCase.caseNumber}`,
+      description: `Assigned investigator ${investigator.firstName} ${investigator.lastName} to case ${existingCase.caseNumber}`,
       metadata: {
-        prosecutorId,
+        investigatorId,
       },
     });
 
     return NextResponse.json({
-      message: 'Prosecutor assigned successfully',
+      message: 'Investigator assigned successfully',
       case: updatedCase,
     });
-
   } catch (error) {
-    console.error('Error assigning prosecutor:', error);
+    console.error('Error assigning investigator:', error);
     return NextResponse.json(
-      { error: 'Failed to assign prosecutor' },
+      { error: 'Failed to assign investigator' },
       { status: 500 }
     );
   }

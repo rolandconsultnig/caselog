@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -53,7 +54,7 @@ export async function PATCH(
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Prisma.CaseServiceUpdateInput = {};
 
     // Handle appointment update
     if (body.appointment) {
@@ -75,15 +76,16 @@ export async function PATCH(
 
     // Handle cost update
     if (body.cost) {
-      updateData.cost = body.cost.cost;
+      updateData.estimatedCost = body.cost.estimatedCost;
+      updateData.actualCost = body.cost.actualCost;
       updateData.fundingSource = body.cost.fundingSource;
       updateData.paymentStatus = body.cost.paymentStatus;
     }
 
     // Handle satisfaction update
     if (body.satisfaction) {
-      updateData.satisfactionLevel = body.satisfaction.satisfactionLevel;
-      updateData.satisfactionNotes = body.satisfaction.satisfactionNotes;
+      updateData.beneficiarySatisfaction = body.satisfaction.beneficiarySatisfaction;
+      updateData.feedback = body.satisfaction.feedback;
     }
 
     // Update service
@@ -99,7 +101,7 @@ export async function PATCH(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'UPDATE',
-        entityType: 'CASE_SERVICE',
+        entityType: 'CASE',
         entityId: service.id,
         entityName: `Service updated in case ${params.id}`,
       },

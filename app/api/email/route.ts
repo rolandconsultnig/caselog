@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import type { InternalEmail } from '@prisma/client';
 
 // GET - Fetch emails (inbox, sent, drafts, etc.)
 export async function GET(request: NextRequest) {
@@ -15,11 +16,11 @@ export async function GET(request: NextRequest) {
     const folder = searchParams.get('folder') || 'inbox';
     const userId = session.user.id;
 
-    let emails;
+    let emails: InternalEmail[] = [];
 
     switch (folder) {
       case 'inbox':
-        emails = await (prisma as any).internalEmail.findMany({
+        emails = await prisma.internalEmail.findMany({
           where: {
             recipientIds: { has: userId },
             isDeleted: false,
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'sent':
-        emails = await (prisma as any).internalEmail.findMany({
+        emails = await prisma.internalEmail.findMany({
           where: {
             senderId: userId,
             isDeleted: false,
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'drafts':
-        emails = await (prisma as any).internalEmail.findMany({
+        emails = await prisma.internalEmail.findMany({
           where: {
             senderId: userId,
             isDraft: true,
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'starred':
-        emails = await (prisma as any).internalEmail.findMany({
+        emails = await prisma.internalEmail.findMany({
           where: {
             OR: [
               { recipientIds: { has: userId } },
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'archived':
-        emails = await (prisma as any).internalEmail.findMany({
+        emails = await prisma.internalEmail.findMany({
           where: {
             OR: [
               { recipientIds: { has: userId } },
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'trash':
-        emails = await (prisma as any).internalEmail.findMany({
+        emails = await prisma.internalEmail.findMany({
           where: {
             OR: [
               { recipientIds: { has: userId } },
@@ -144,13 +145,13 @@ export async function POST(request: NextRequest) {
     // Generate thread ID if this is a reply
     let threadId = null;
     if (replyToId) {
-      const originalEmail = await (prisma as any).internalEmail.findUnique({
+      const originalEmail = await prisma.internalEmail.findUnique({
         where: { id: replyToId },
       });
       threadId = originalEmail?.threadId || replyToId;
     }
 
-    const email = await (prisma as any).internalEmail.create({
+    const email = await prisma.internalEmail.create({
       data: {
         subject,
         body: bodyContent,

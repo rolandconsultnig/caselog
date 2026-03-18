@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
+
+type ReadReceipt = {
+  userId: string;
+  userName: string | null;
+  readAt: string;
+};
 
 export async function POST(
   request: NextRequest,
@@ -26,9 +33,11 @@ export async function POST(
       readBy.push(session.user.id);
     }
 
-    const readReceipts = Array.isArray(message.readReceipts) ? message.readReceipts : [];
+    const readReceipts: ReadReceipt[] = Array.isArray(message.readReceipts)
+      ? (message.readReceipts as unknown as ReadReceipt[])
+      : [];
     const existingReceiptIndex = readReceipts.findIndex(
-      (r: any) => r.userId === session.user.id
+      (r) => r.userId === session.user.id
     );
 
     if (existingReceiptIndex >= 0) {
@@ -49,7 +58,7 @@ export async function POST(
       where: { id: params.messageId },
       data: {
         readBy,
-        readReceipts: readReceipts as any,
+        readReceipts: readReceipts as unknown as Prisma.InputJsonValue[],
       },
     });
 

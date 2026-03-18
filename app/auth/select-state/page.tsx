@@ -40,7 +40,7 @@ export default function SelectStatePage() {
               name: 'Federal Ministry of Justice',
               type: 'FEDERAL',
             },
-            ...NIGERIAN_STATES.map((state, index) => ({
+            ...NIGERIAN_STATES.map((state) => ({
               id: `state-${state.code.toLowerCase()}`,
               name: state.name,
               type: 'STATE',
@@ -99,9 +99,11 @@ export default function SelectStatePage() {
       {/* Coat of Arms - Top Center */}
       <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 py-2 z-50">
         <div className="flex justify-center">
-          <img 
-            src="/coat-of-arms.png" 
-            alt="Nigerian Coat of Arms" 
+          <Image
+            src="/coat-of-arms.png"
+            alt="Nigerian Coat of Arms"
+            width={160}
+            height={40}
             className="h-10 w-auto object-contain"
           />
         </div>
@@ -109,12 +111,12 @@ export default function SelectStatePage() {
       <div className="max-w-md w-full mx-4 mt-20">
         <div className="bg-white rounded-lg shadow-xl p-8">
           <div className="flex flex-col items-center mb-8">
-            <div className="bg-green-50 rounded-full p-3 shadow-md w-20 h-20 flex items-center justify-center overflow-hidden mb-4">
+            <div className="bg-green-50 rounded-full p-3 shadow-md w-20 h-20 flex items-center justify-center overflow-hidden mb-4 relative">
               <Image 
                 src="/coat-of-arms.png" 
                 alt="Nigerian Coat of Arms" 
-                width={64} 
-                height={64}
+                fill
+                sizes="80px"
                 className="object-contain"
               />
             </div>
@@ -154,13 +156,15 @@ export default function SelectStatePage() {
                 >
                   {selectedTenant ? (
                     <div className="flex items-center">
-                      <Image
-                        src={getStateLogo(selectedTenant.name)}
-                        alt={`${selectedTenant.name} logo`}
-                        width={24}
-                        height={24}
-                        className="mr-3 object-contain"
-                      />
+                      <span className="relative w-6 h-6 mr-3 flex-shrink-0">
+                        <Image
+                          src={getStateLogo(selectedTenant.name)}
+                          alt={`${selectedTenant.name} logo`}
+                          fill
+                          sizes="24px"
+                          className="object-contain"
+                        />
+                      </span>
                       <span>{selectedTenant.name} {selectedTenant.type === 'FEDERAL' ? '(Federal)' : ''}</span>
                     </div>
                   ) : (
@@ -186,13 +190,15 @@ export default function SelectStatePage() {
                         className="text-gray-900 cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-green-50"
                       >
                         <div className="flex items-center">
-                          <Image
-                            src={getStateLogo(tenant.name)}
-                            alt={`${tenant.name} logo`}
-                            width={24}
-                            height={24}
-                            className="mr-3 object-contain"
-                          />
+                          <span className="relative w-6 h-6 mr-3 flex-shrink-0 inline-block">
+                            <Image
+                              src={getStateLogo(tenant.name)}
+                              alt={`${tenant.name} logo`}
+                              fill
+                              sizes="24px"
+                              className="object-contain"
+                            />
+                          </span>
                           <span className="font-normal block truncate">
                             {tenant.name} {tenant.type === 'FEDERAL' ? '(Federal)' : ''}
                           </span>

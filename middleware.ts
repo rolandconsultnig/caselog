@@ -3,17 +3,19 @@ import { NextResponse } from 'next/server';
 
 export default withAuth(
   function middleware(req) {
-    // Additional middleware logic can be added here
     return NextResponse.next();
   },
   {
     callbacks: {
       authorized: ({ token }) => !!token,
     },
+    pages: {
+      signIn: '/auth/select-state',
+    },
   }
 );
 
-// Protect all routes under /dashboard
+// Protect all routes under /dashboard; allow auth and api routes
 export const config = {
   matcher: ['/dashboard/:path*'],
 };

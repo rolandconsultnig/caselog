@@ -10,7 +10,6 @@ import {
   Clock,
   User,
   FileText,
-  Shield,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -32,16 +31,32 @@ interface TimelineEvent {
     lastName: string;
     email: string;
   };
-  metadata?: any;
+  metadata?: unknown;
+}
+
+interface CaseSummary {
+  caseNumber?: string;
+  status?: string;
+  formOfSGBV?: string;
+  createdAt?: string;
+  approvedAt?: string;
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  details: string;
+  createdAt: string;
+  user?: TimelineEvent['user'];
 }
 
 export default function CaseTimelinePage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  useSession();
   const caseId = params?.id as string;
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
-  const [caseData, setCaseData] = useState<any>(null);
+  const [caseData, setCaseData] = useState<CaseSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,8 +69,8 @@ export default function CaseTimelinePage() {
   const fetchCaseData = async () => {
     try {
       const response = await axios.get(`/api/cases/${caseId}`);
-      setCaseData(response.data);
-    } catch (error: any) {
+      setCaseData(response.data as CaseSummary);
+    } catch {
       toast.error('Failed to load case data');
     }
   };
@@ -64,11 +79,12 @@ export default function CaseTimelinePage() {
     try {
       const response = await axios.get(`/api/cases/${caseId}/timeline`);
       setTimeline(response.data.events || []);
-    } catch (error: any) {
+    } catch {
       // If endpoint doesn't exist, generate timeline from audit logs
       try {
         const auditResponse = await axios.get(`/api/admin/audit-logs?entityType=Case&entityId=${caseId}`);
-        const events = auditResponse.data.logs.map((log: any) => ({
+        const logs = (auditResponse.data?.logs as AuditLog[] | undefined) || [];
+        const events: TimelineEvent[] = logs.map((log) => ({
           id: log.id,
           type: mapActionToType(log.action),
           title: log.action,
@@ -76,10 +92,12 @@ export default function CaseTimelinePage() {
           timestamp: log.createdAt,
           user: log.user,
         }));
-        setTimeline(events.sort((a: any, b: any) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        ));
-      } catch (auditError) {
+        setTimeline(
+          events.sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          )
+        );
+      } catch {
         // Generate basic timeline from case data
         if (caseData) {
           const basicTimeline: TimelineEvent[] = [
@@ -87,8 +105,8 @@ export default function CaseTimelinePage() {
               id: 'created',
               type: 'created',
               title: 'Case Created',
-              description: `Case ${caseData.caseNumber} was created`,
-              timestamp: caseData.createdAt,
+              description: `Case ${caseData.caseNumber || ''} was created`,
+              timestamp: caseData.createdAt || new Date().toISOString(),
             },
           ];
           if (caseData.approvedAt) {
@@ -205,7 +223,7 @@ export default function CaseTimelinePage() {
 
                 {/* Timeline events */}
                 <div className="space-y-6">
-                  {timeline.map((event, index) => (
+                  {timeline.map((event) => (
                     <div key={event.id} className="relative flex items-start gap-4">
                       {/* Icon */}
                       <div
@@ -232,7 +250,7 @@ export default function CaseTimelinePage() {
                               By: {event.user.firstName} {event.user.lastName} ({event.user.email})
                             </p>
                           )}
-                          {event.metadata && (
+                          {event.metadata != null && (
                             <div className="mt-2 text-xs text-gray-500">
                               <pre className="bg-white/50 p-2 rounded overflow-auto">
                                 {JSON.stringify(event.metadata, null, 2)}
@@ -263,16 +281,16 @@ export default function CaseTimelinePage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Status</p>
-                  <p className="font-medium">{caseData.status}</p>
+                  <p className="font-medium">{caseData.status || ''}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Form of SGBV</p>
-                  <p className="font-medium">{caseData.formOfSGBV}</p>
+                  <p className="font-medium">{caseData.formOfSGBV || ''}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Created</p>
                   <p className="font-medium">
-                    {format(new Date(caseData.createdAt), 'MMM dd, yyyy')}
+                    {caseData.createdAt ? format(new Date(caseData.createdAt), 'MMM dd, yyyy') : ''}
                   </p>
                 </div>
               </div>

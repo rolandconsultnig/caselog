@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Badge } from './ui/Badge';
 
 interface Notification {
   id: string;

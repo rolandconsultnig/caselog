@@ -10,12 +10,40 @@ import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import axios from 'axios';
+
+type FormDataState = {
+  offenceName: string;
+  offenceCode: string;
+  dateOfOffence: string;
+  placeOfOffence: string;
+  applicableLaw: string;
+  penalty: string;
+  dateReported: string;
+  suspectArrested: boolean;
+  dateArrested: string;
+  investigationStatus: string;
+  natureOfOffence: string;
+  investigatingOfficer: string;
+  officerContact: string;
+  officerEmail: string;
+  investigationProgress: string;
+};
+
+function toDateInputValue(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().split('T')[0] ?? '';
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '' : (d.toISOString().split('T')[0] ?? '');
+  }
+  return '';
+}
+
 export default function OffenceDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataState>({
     offenceName: '',
     offenceCode: '',
     dateOfOffence: '',
@@ -39,16 +67,16 @@ export default function OffenceDetailsPage() {
         const response = await axios.get(`/api/cases/${params.id}/offence`);
         if (response.data.offence) {
           // Format dates for input fields
-          const { offence, ...rest } = response.data;
-          const formattedOffence = {
-            ...offence,
-            dateOfOffence: offence.dateOfOffence ? new Date(offence.dateOfOffence).toISOString().split('T')[0] : '',
-            dateReported: offence.dateReported ? new Date(offence.dateReported).toISOString().split('T')[0] : '',
-            dateArrested: offence.dateArrested ? new Date(offence.dateArrested).toISOString().split('T')[0] : '',
-          };
-          setFormData(formattedOffence);
+          const { offence } = response.data as { offence: Record<string, unknown> };
+          setFormData((prev) => ({
+            ...prev,
+            ...(offence as Partial<FormDataState>),
+            dateOfOffence: toDateInputValue(offence.dateOfOffence),
+            dateReported: toDateInputValue(offence.dateReported),
+            dateArrested: toDateInputValue(offence.dateArrested),
+          }));
         }
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch offence details');
       }
     };
@@ -74,7 +102,7 @@ export default function OffenceDetailsPage() {
       await axios.post(`/api/cases/${params.id}/offence`, formData);
       toast.success('Offence and Investigation details saved successfully');
       router.push(`/dashboard/cases/${params.id}`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to save details');
     } finally {
       setLoading(false);
@@ -175,14 +203,34 @@ export default function OffenceDetailsPage() {
   );
 }
 
-const InputField = ({ label, name, type = 'text', value, onChange, required = false, placeholder = '' }) => (
+type InputFieldProps = {
+  label: string;
+  name: string;
+  type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+  required?: boolean;
+  placeholder?: string;
+};
+
+type TextAreaFieldProps = {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+  required?: boolean;
+  rows?: number;
+  placeholder?: string;
+};
+
+const InputField = ({ label, name, type = 'text', value, onChange, required = false, placeholder = '' }: InputFieldProps) => (
   <div>
     <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
     <input id={name} name={name} type={type} value={value} onChange={onChange} required={required} placeholder={placeholder} className="w-full px-3 py-2 border border-gray-300 rounded-md" />
   </div>
 );
 
-const TextAreaField = ({ label, name, value, onChange, required = false, rows = 3, placeholder = '' }) => (
+const TextAreaField = ({ label, name, value, onChange, required = false, rows = 3, placeholder = '' }: TextAreaFieldProps) => (
   <div>
     <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
     <textarea id={name} name={name} value={value} onChange={onChange} required={required} rows={rows} placeholder={placeholder} className="w-full px-3 py-2 border border-gray-300 rounded-md" />

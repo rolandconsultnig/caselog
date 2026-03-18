@@ -15,12 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/Table';
-import { Search, Filter, Eye, Plus } from 'lucide-react';
+import { Search, Eye, Plus } from 'lucide-react';
 import { formatDate, getCaseStatusColor } from '@/lib/utils';
 import Link from 'next/link';
 import axios from 'axios';
 import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
+
+type CaseListItem = {
+  id: string;
+  caseNumber?: string;
+  caseType?: string;
+  status?: string;
+  createdAt: string;
+  tenant?: { code?: string } | null;
+  victims?: Array<{ firstName?: string; lastName?: string }>;
+};
 
 export default function CasesPage() {
   const { data: session } = useSession();
@@ -143,7 +153,7 @@ export default function CasesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.cases.map((caseItem: any) => (
+                      {data.cases.map((caseItem: CaseListItem) => (
                         <TableRow key={caseItem.id}>
                           <TableCell className="font-medium">
                             {caseItem.caseNumber}

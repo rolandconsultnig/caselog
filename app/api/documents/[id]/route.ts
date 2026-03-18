@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { readFileFromStorage, deleteFile } from '@/lib/file-upload';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { getPermissions, canAccessCase } from '@/lib/permissions';
+import { TenantType } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +16,15 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const permissions = getPermissions(
+      session.user.accessLevel,
+      session.user.tenantType as TenantType
+    );
+
+    if (!permissions.canDownloadDocuments) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const document = await prisma.caseFile.findUnique({
       where: { id: params.id },
     });
@@ -24,8 +33,24 @@ export async function GET(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // Check access permissions
-    // TODO: Implement proper access control based on accessLevel
+    const relatedCase = await prisma.case.findUnique({
+      where: { id: document.caseId },
+      select: { tenantId: true },
+    });
+
+    if (!relatedCase) {
+      return NextResponse.json({ error: 'Case not found' }, { status: 404 });
+    }
+
+    if (
+      !canAccessCase(
+        session.user.tenantId,
+        relatedCase.tenantId,
+        session.user.tenantType as TenantType
+      )
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Update access tracking
     await prisma.caseFile.update({
@@ -41,7 +66,11 @@ export async function GET(
     const fileBuffer = await readFileFromStorage(document.filePath);
 
     // Return file with appropriate headers
-      return new NextResponse(fileBuffer as any, {
+    // `readFileFromStorage` returns a Node `Buffer` (a `Uint8Array`).
+    // Create a copy so TS doesn't infer `SharedArrayBuffer`.
+    const body = Uint8Array.from(fileBuffer);
+
+    return new NextResponse(body as unknown as BodyInit, {
       headers: {
         'Content-Type': document.mimeType,
         'Content-Disposition': `attachment; filename="${document.originalFileName}"`,
@@ -67,10 +96,13 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user has permission to delete (LEVEL_4 or higher)
-    const userLevel = parseInt(session.user.accessLevel.replace('LEVEL_', ''));
-    if (userLevel < 4 && session.user.accessLevel !== 'APP_ADMIN' && session.user.accessLevel !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    const permissions = getPermissions(
+      session.user.accessLevel,
+      session.user.tenantType as TenantType
+    );
+
+    if (!permissions.canDeleteDocuments) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const document = await prisma.caseFile.findUnique({
@@ -79,6 +111,25 @@ export async function DELETE(
 
     if (!document) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    const relatedCase = await prisma.case.findUnique({
+      where: { id: document.caseId },
+      select: { tenantId: true },
+    });
+
+    if (!relatedCase) {
+      return NextResponse.json({ error: 'Case not found' }, { status: 404 });
+    }
+
+    if (
+      !canAccessCase(
+        session.user.tenantId,
+        relatedCase.tenantId,
+        session.user.tenantType as TenantType
+      )
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Delete file from storage
@@ -101,7 +152,7 @@ export async function DELETE(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'DELETE',
-        entityType: 'CASE_FILE',
+        entityType: 'DOCUMENT',
         entityId: params.id,
         entityName: `Document "${document.originalFileName}" deleted from case ${document.caseId}`,
       },

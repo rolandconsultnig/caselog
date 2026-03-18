@@ -13,11 +13,13 @@ export interface EmailOptions {
   }>;
 }
 
-export interface EmailTemplate {
+export interface EmailTemplate<TData = unknown> {
   subject: string;
-  html: (data: any) => string;
-  text?: (data: any) => string;
+  html: (data: TData) => string;
+  text?: (data: TData) => string;
 }
+
+export type TypedEmailTemplate<TData> = EmailTemplate<TData>;
 
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
@@ -69,9 +71,22 @@ class EmailService {
     }
   }
 
-  async sendTemplateEmail(
-    template: EmailTemplate,
-    data: any,
+  async sendTemplateEmail<TData>(
+    template: EmailTemplate<TData>,
+    data: TData,
+    to: string | string[]
+  ): Promise<boolean> {
+    return this.sendEmail({
+      to,
+      subject: template.subject,
+      html: template.html(data),
+      text: template.text ? template.text(data) : undefined,
+    });
+  }
+
+  async sendTypedTemplateEmail<TData>(
+    template: TypedEmailTemplate<TData>,
+    data: TData,
     to: string | string[]
   ): Promise<boolean> {
     return this.sendEmail({

@@ -9,6 +9,11 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
 
+interface ProgressReport {
+  title?: string;
+  date?: string;
+}
+
 interface Partnership {
   id: string;
   partnershipNumber: string;
@@ -30,7 +35,7 @@ interface Partnership {
   supportFrequency?: string;
   expectedDuration?: number;
   actualDuration?: number;
-  progressReports: any[];
+  progressReports: ProgressReport[];
   milestonesAchieved: string[];
   challengesFaced?: string;
   fundingSource?: string;
@@ -51,7 +56,7 @@ interface Partnership {
 export default function NGOPartnershipDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  useSession();
   const [partnership, setPartnership] = useState<Partnership | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -91,7 +96,7 @@ export default function NGOPartnershipDetailPage() {
           <div className="text-center py-12">
             <h3 className="text-lg font-medium text-gray-900">Partnership not found</h3>
             <p className="mt-2 text-sm text-gray-500">
-              The partnership you're looking for doesn't exist or you don't have access to it.
+              The partnership you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
             <div className="mt-6">
               <Link href="/dashboard/ngo-partnerships">
@@ -195,7 +200,7 @@ export default function NGOPartnershipDetailPage() {
               <p className="text-sm text-gray-600 mb-2">Services Requested</p>
               <div className="flex flex-wrap gap-2">
                 {partnership.servicesRequested.map((service, index) => (
-                  <Badge key={index} variant="outline">{service}</Badge>
+                  <Badge key={index} variant="default">{service}</Badge>
                 ))}
               </div>
             </div>
@@ -242,7 +247,7 @@ export default function NGOPartnershipDetailPage() {
               <div>
                 <p className="text-sm text-gray-600 mb-2">Progress Reports</p>
                 <div className="space-y-2">
-                  {partnership.progressReports.map((report: any, index) => (
+                  {partnership.progressReports.map((report, index) => (
                     <div key={index} className="p-3 bg-gray-50 rounded">
                       <p className="text-sm font-medium">{report.title || `Report ${index + 1}`}</p>
                       <p className="text-xs text-gray-500">{report.date}</p>
@@ -292,7 +297,7 @@ export default function NGOPartnershipDetailPage() {
                   <Badge variant={
                     partnership.satisfactionRating === 'EXCELLENT' ? 'success' :
                     partnership.satisfactionRating === 'GOOD' ? 'info' :
-                    partnership.satisfactionRating === 'FAIR' ? 'warning' : 'error'
+                    partnership.satisfactionRating === 'FAIR' ? 'warning' : 'danger'
                   }>
                     {partnership.satisfactionRating}
                   </Badge>

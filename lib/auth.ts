@@ -96,6 +96,10 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error) {
           console.error('Database error during authentication:', error);
+          const message = error instanceof Error ? error.message : '';
+          if (message === 'Invalid credentials' || message.startsWith('Access denied:')) {
+            throw error;
+          }
           throw new Error('Authentication service unavailable');
         }
       },
@@ -114,6 +118,11 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
@@ -128,7 +137,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: '/auth/signin',
+    signIn: '/auth/select-state',
     error: '/auth/error',
   },
   session: {
@@ -136,5 +145,6 @@ export const authOptions: NextAuthOptions = {
     maxAge: 8 * 60 * 60, // 8 hours
   },
   secret: process.env.NEXTAUTH_SECRET,
+  trustHost: true,
 };
 

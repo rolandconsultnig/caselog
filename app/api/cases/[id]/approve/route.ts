@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { getPermissions, canAccessCase } from '@/lib/permissions';
+import { canAccessCase } from '@/lib/permissions';
 import { logAudit } from '@/lib/utils';
-import { TenantType, CaseStatus } from '@prisma/client';
+import { Prisma, TenantType } from '@prisma/client';
 
 // POST /api/cases/[id]/approve - Approve case
 export async function POST(
@@ -16,11 +16,6 @@ export async function POST(
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const permissions = getPermissions(
-      session.user.accessLevel,
-      session.user.tenantType as TenantType
-    );
 
     // Only Level 3 can approve cases
     if (session.user.accessLevel !== 'LEVEL_3') {
@@ -48,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (caseData.status !== 'PENDING_APPROVAL' as any) {
+    if (caseData.status !== 'PENDING_APPROVAL') {
       return NextResponse.json(
         { error: 'Case is not pending approval' },
         { status: 400 }
@@ -59,10 +54,10 @@ export async function POST(
     const updatedCase = await prisma.case.update({
       where: { id: params.id },
       data: {
-        status: 'APPROVED' as any,
+        status: 'APPROVED',
         approvedBy: session.user.id,
         approvedAt: new Date(),
-      } as any,
+      } as Prisma.CaseUpdateInput,
       include: {
         victims: true,
         perpetrators: true,
@@ -75,7 +70,7 @@ export async function POST(
       userName: session.user.name || 'Unknown',
       userRole: session.user.accessLevel,
       action: 'APPROVE',
-      entityType: 'Case',
+      entityType: 'CASE',
       entityId: updatedCase.id,
       caseId: updatedCase.id,
       description: `Approved case ${updatedCase.caseNumber}`,

@@ -14,12 +14,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/Table';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
+
+interface DeletionRequest {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  reason: string;
+  createdAt: string;
+  case: {
+    caseNumber: string;
+    victim?: { name?: string } | null;
+  };
+  requestedBy: {
+    firstName: string;
+    lastName: string;
+  };
+}
 
 export default function DeletionRequestsPage() {
   const { data: session } = useSession();
@@ -100,7 +115,7 @@ export default function DeletionRequestsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {requests.map((request: any) => (
+                    {(requests as DeletionRequest[]).map((request) => (
                       <TableRow key={request.id}>
                         <TableCell className="font-medium">
                           {request.case.caseNumber}

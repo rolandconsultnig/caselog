@@ -19,7 +19,7 @@ interface LegalProvision {
 }
 
 export default function LegalReferencesPage() {
-  const { data: session } = useSession();
+  useSession();
   const [provisions, setProvisions] = useState<LegalProvision[]>([]);
   const [filteredProvisions, setFilteredProvisions] = useState<LegalProvision[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions } from '@/lib/permissions';
-import { TenantType } from '@prisma/client';
+import { Prisma, TenantType } from '@prisma/client';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.CourtRecordWhereInput = {};
 
     // Federal users can see all, state users only their own
     if (session.user.tenantType !== 'FEDERAL') {

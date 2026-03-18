@@ -35,7 +35,7 @@ interface AssignedCase {
 }
 
 export default function InvestigatorDashboard() {
-  const { data: session } = useSession();
+  useSession();
   const [assignedCases, setAssignedCases] = useState<AssignedCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -68,7 +68,7 @@ export default function InvestigatorDashboard() {
           c.status === 'CLOSED'
         ).length,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching investigator data:', error);
       toast.error('Failed to load assigned cases');
     } finally {

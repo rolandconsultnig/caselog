@@ -1,37 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  AreaChart,
-  Area,
 } from 'recharts';
 import {
   FileText,
   Download,
-  Calendar,
   Filter,
   TrendingUp,
   BarChart3,
-  PieChart as PieChartIcon,
   Activity,
   Loader2,
 } from 'lucide-react';
@@ -41,9 +28,7 @@ import { toast } from 'sonner';
 import { 
   THEME_COLORS, 
   REPORT_TYPES, 
-  CASE_STATUS, 
-  APP_CONFIG,
-  EXPORT_FORMATS 
+  CASE_STATUS 
 } from '@/lib/constants';
 
 export default function ReportsPage() {
@@ -51,12 +36,12 @@ export default function ReportsPage() {
   const [reportType, setReportType] = useState('summary');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedTenant, setSelectedTenant] = useState('');
+  const [selectedTenant] = useState('');
   const [caseStatus, setCaseStatus] = useState('');
-  const [casePriority, setCasePriority] = useState('');
-  const [sgbvType, setSgbvType] = useState('');
-  const [state, setState] = useState('');
-  const [jurisdiction, setJurisdiction] = useState('');
+  const [casePriority] = useState('');
+  const [sgbvType] = useState('');
+  const [state] = useState('');
+  const [jurisdiction] = useState('');
 
   const permissions = session
     ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
@@ -378,7 +363,7 @@ export default function ReportsPage() {
                         fill="#8884d8"
                         dataKey="count"
                       >
-                        {reportData.data.statusBreakdown.map((entry: any, index: number) => (
+                        {reportData.data.statusBreakdown.map((entry: { count: number; name?: string }, index: number) => (
                           <Cell key={`cell-${index}`} fill={THEME_COLORS.chart[index % THEME_COLORS.chart.length]} />
                         ))}
                       </Pie>

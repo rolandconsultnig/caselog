@@ -6,7 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { formatDate, formatDateTime, getCaseStatusColor } from '@/lib/utils';
+import { formatDateTime, getCaseStatusColor } from '@/lib/utils';
 import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
 import axios from 'axios';
@@ -16,14 +16,44 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+function getErrorMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  if ('response' in error) {
+    const response = (error as { response?: unknown }).response;
+    if (typeof response === 'object' && response !== null && 'data' in response) {
+      const data = (response as { data?: unknown }).data;
+      if (typeof data === 'object' && data !== null && 'error' in data) {
+        const message = (data as { error?: unknown }).error;
+        if (typeof message === 'string') return message;
+      }
+    }
+  }
+
+  if ('message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+  }
+
+  return undefined;
+}
+
+interface AssigneeOption {
+  id: string;
+  name: string;
+  email?: string;
+}
+
 export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const { data: session } = useSession();
-  const router = useRouter();
+  useRouter();
   const queryClient = useQueryClient();
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletionReason, setDeletionReason] = useState('');
+  const [selectedInvestigatorId, setSelectedInvestigatorId] = useState<string>('');
+  const [selectedProsecutorId, setSelectedProsecutorId] = useState<string>('');
 
   const permissions = session
     ? getPermissions(session.user.accessLevel, session.user.tenantType as TenantType)
@@ -36,6 +66,50 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
       return response.data;
     },
     enabled: !!session,
+  });
+
+  const isLevel3 = session?.user?.accessLevel === 'LEVEL_3';
+  const isProsecutionFlow = caseData?.legalServiceType === 'PROSECUTION';
+
+  const { data: assigneesData, isLoading: isAssigneesLoading } = useQuery({
+    queryKey: ['case', params.id, 'assignees'],
+    queryFn: async () => {
+      const response = await axios.get(`/api/cases/${params.id}/assignees`);
+      return response.data;
+    },
+    enabled: !!session && !!caseData && isLevel3,
+  });
+
+  const assignInvestigatorMutation = useMutation({
+    mutationFn: async (investigatorId: string) => {
+      await axios.post(`/api/cases/${params.id}/assign-investigator`, { investigatorId });
+    },
+    onSuccess: () => {
+      toast.success('Investigator assigned successfully');
+      queryClient.invalidateQueries({ queryKey: ['case', params.id] });
+      queryClient.invalidateQueries({ queryKey: ['cases'] });
+      queryClient.invalidateQueries({ queryKey: ['case', params.id, 'assignees'] });
+      setSelectedInvestigatorId('');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Failed to assign investigator');
+    },
+  });
+
+  const assignProsecutorMutation = useMutation({
+    mutationFn: async (prosecutorId: string) => {
+      await axios.post(`/api/cases/${params.id}/assign-prosecutor`, { prosecutorId });
+    },
+    onSuccess: () => {
+      toast.success('Prosecutor assigned successfully');
+      queryClient.invalidateQueries({ queryKey: ['case', params.id] });
+      queryClient.invalidateQueries({ queryKey: ['cases'] });
+      queryClient.invalidateQueries({ queryKey: ['case', params.id, 'assignees'] });
+      setSelectedProsecutorId('');
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Failed to assign prosecutor');
+    },
   });
 
   const approveMutation = useMutation({
@@ -302,6 +376,28 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">
+                  Assigned Investigator
+                </label>
+                <p className="text-base text-gray-900 mt-1">
+                  {caseData.investigator
+                    ? `${caseData.investigator.firstName} ${caseData.investigator.lastName}`
+                    : 'Unassigned'}
+                </p>
+              </div>
+              {isProsecutionFlow && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">
+                    Assigned Prosecutor
+                  </label>
+                  <p className="text-base text-gray-900 mt-1">
+                    {caseData.prosecutor
+                      ? `${caseData.prosecutor.firstName} ${caseData.prosecutor.lastName}`
+                      : 'Unassigned'}
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium text-gray-600">
                   Created By
                 </label>
                 <p className="text-base text-gray-900 mt-1">
@@ -349,6 +445,81 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             </div>
           </CardContent>
         </Card>
+
+        {isLevel3 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Assignments</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assign Investigator
+                  </label>
+                  <div className="flex space-x-2">
+                    <select
+                      value={selectedInvestigatorId}
+                      onChange={(e) => setSelectedInvestigatorId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      disabled={isAssigneesLoading}
+                    >
+                      <option value="">Select investigator...</option>
+                      {((assigneesData?.investigators || []) as AssigneeOption[]).map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}{u.email ? ` (${u.email})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        selectedInvestigatorId &&
+                        assignInvestigatorMutation.mutate(selectedInvestigatorId)
+                      }
+                      disabled={!selectedInvestigatorId || assignInvestigatorMutation.isPending}
+                    >
+                      Assign
+                    </Button>
+                  </div>
+                </div>
+
+                {isProsecutionFlow && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign Prosecutor
+                    </label>
+                    <div className="flex space-x-2">
+                      <select
+                        value={selectedProsecutorId}
+                        onChange={(e) => setSelectedProsecutorId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        disabled={isAssigneesLoading}
+                      >
+                        <option value="">Select prosecutor...</option>
+                        {((assigneesData?.prosecutors || []) as AssigneeOption[]).map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}{u.email ? ` (${u.email})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          selectedProsecutorId &&
+                          assignProsecutorMutation.mutate(selectedProsecutorId)
+                        }
+                        disabled={!selectedProsecutorId || assignProsecutorMutation.isPending}
+                      >
+                        Assign
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Victim Details */}
         {caseData.victim && (
@@ -516,12 +687,13 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   );
 }
 
-function InfoField({ label, value }: { label: string; value: any }) {
+function InfoField({ label, value }: { label: string; value: unknown }) {
+  const displayValue =
+    value == null ? '' : typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   return (
     <div>
       <label className="text-sm font-medium text-gray-600">{label}</label>
-      <p className="text-base text-gray-900 mt-1">{value || 'N/A'}</p>
+      <p className="mt-1 text-sm text-gray-900">{displayValue || 'N/A'}</p>
     </div>
   );
 }
-

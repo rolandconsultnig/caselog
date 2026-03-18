@@ -96,7 +96,7 @@ export async function POST(
         userName: session.user.name,
         userRole: session.user.accessLevel,
         action: 'CREATE',
-        entityType: 'COURT_RECORD',
+        entityType: 'CASE',
         entityId: courtRecord.id,
         entityName: `Court record added to case ${params.id}`,
       },

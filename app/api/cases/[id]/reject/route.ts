@@ -73,8 +73,10 @@ export async function POST(
     // Log audit
     await logAudit({
       userId: session.user.id,
+      userName: session.user.name || session.user.email || 'Unknown',
+      userRole: session.user.accessLevel,
       action: 'REJECT',
-      entityType: 'Case',
+      entityType: 'CASE',
       entityId: updatedCase.id,
       caseId: updatedCase.id,
       description: `Rejected case ${updatedCase.caseNumber}: ${reason}`,

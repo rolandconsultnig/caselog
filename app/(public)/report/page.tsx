@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, AlertCircle, Shield, FileText, User, MapPin, Calendar, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Shield, User } from 'lucide-react';
 import { toast } from 'sonner';
-import axios from 'axios';
 
 export default function ReportIncidentPage() {
   const [formData, setFormData] = useState({

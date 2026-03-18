@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions, canAccessCase } from '@/lib/permissions';
-import { logAudit } from '@/lib/utils';
 import { TenantType } from '@prisma/client';
 
 // GET /api/deletion-requests - List deletion requests
@@ -24,17 +23,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || 'PENDING';
-
-    const where: any = { status };
-
-    // Filter by tenant for state users
-    if (session.user.tenantType !== 'FEDERAL') {
-      where.case = { tenantId: session.user.tenantId };
-    }
+    void searchParams.get('status');
 
     // DeletionRequest model not in schema - returning empty array
-    const requests: any[] = [];
+    const requests: unknown[] = [];
 
     return NextResponse.json(requests);
   } catch (error) {

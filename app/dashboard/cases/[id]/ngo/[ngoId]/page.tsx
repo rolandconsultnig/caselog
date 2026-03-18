@@ -1,18 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
-import { ArrowLeft, FileText, CheckCircle2, Star, Upload, Calendar, Target } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle2, Star, Target } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface ProgressReport {
+  reportDate?: string;
+  period?: string;
+  activitiesCompleted?: string;
+  challenges?: string;
+  nextSteps?: string;
+}
 
 interface NGOPartnership {
   id: string;
+  caseId: string;
   ngoName: string;
   ngoType?: string;
   contactPerson: string;
@@ -25,7 +33,7 @@ interface NGOPartnership {
   supportStartDate: string;
   supportEndDate?: string;
   supportFrequency?: string;
-  progressReports: any[];
+  progressReports: ProgressReport[];
   milestonesAchieved: string[];
   challengesFaced?: string;
   finalReportSubmitted: boolean;
@@ -40,7 +48,6 @@ interface NGOPartnership {
 export default function NGOPartnershipDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
   const [partnership, setPartnership] = useState<NGOPartnership | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'progress' | 'milestones' | 'final-report' | 'satisfaction'>('overview');
@@ -49,11 +56,7 @@ export default function NGOPartnershipDetailPage() {
   const [showFinalReportForm, setShowFinalReportForm] = useState(false);
   const [showSatisfactionForm, setShowSatisfactionForm] = useState(false);
 
-  useEffect(() => {
-    fetchPartnership();
-  }, [params.ngoId]);
-
-  const fetchPartnership = async () => {
+  const fetchPartnership = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/ngo`);
       if (response.ok) {
@@ -72,9 +75,13 @@ export default function NGOPartnershipDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id, params.ngoId, router]);
 
-  const handleUpdate = async (field: string, value: any) => {
+  useEffect(() => {
+    fetchPartnership();
+  }, [fetchPartnership]);
+
+  const handleUpdate = async (field: string, value: unknown) => {
     try {
       const response = await fetch(`/api/cases/${params.id}/ngo/${params.ngoId}`, {
         method: 'PATCH',
@@ -89,9 +96,10 @@ export default function NGOPartnershipDetailPage() {
 
       toast.success('Partnership updated successfully');
       fetchPartnership();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating partnership:', error);
-      toast.error(error.message || 'Failed to update partnership');
+      const message = error instanceof Error ? error.message : 'Failed to update partnership';
+      toast.error(message);
     }
   };
 
@@ -280,7 +288,7 @@ export default function NGOPartnershipDetailPage() {
                   />
                 ) : partnership.progressReports && partnership.progressReports.length > 0 ? (
                   <div className="space-y-4">
-                    {partnership.progressReports.map((report: any, index: number) => (
+                    {partnership.progressReports.map((report: ProgressReport, index: number) => (
                       <Card key={index} className="bg-gray-50">
                         <div className="p-4">
                           <div className="flex items-center justify-between mb-2">
@@ -496,7 +504,12 @@ export default function NGOPartnershipDetailPage() {
 }
 
 // Form Components
-function ProgressReportForm({ onSave, onCancel }: any) {
+type ProgressReportFormProps = {
+  onSave: (data: ProgressReport) => void;
+  onCancel: () => void;
+};
+
+function ProgressReportForm({ onSave, onCancel }: ProgressReportFormProps) {
   const [formData, setFormData] = useState({
     reportDate: new Date().toISOString().split('T')[0],
     period: '',
@@ -581,7 +594,13 @@ function ProgressReportForm({ onSave, onCancel }: any) {
   );
 }
 
-function MilestoneForm({ existingMilestones, onSave, onCancel }: any) {
+type MilestoneFormProps = {
+  existingMilestones: string[];
+  onSave: (milestones: string[]) => void;
+  onCancel: () => void;
+};
+
+function MilestoneForm({ existingMilestones, onSave, onCancel }: MilestoneFormProps) {
   const [milestone, setMilestone] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -615,7 +634,25 @@ function MilestoneForm({ existingMilestones, onSave, onCancel }: any) {
   );
 }
 
-function FinalReportForm({ partnership, onSave, onCancel }: any) {
+type FinalReportFormData = {
+  finalReportDate: string;
+  overallOutcome: string;
+  recommendationsForFuture: string;
+  finalReportFile: File | null;
+};
+
+type FinalReportPayload = FinalReportFormData & {
+  finalReportPath: string;
+  finalReportSubmitted: true;
+};
+
+type FinalReportFormProps = {
+  partnership: NGOPartnership;
+  onSave: (data: FinalReportPayload) => void;
+  onCancel: () => void;
+};
+
+function FinalReportForm({ partnership, onSave, onCancel }: FinalReportFormProps) {
   const [formData, setFormData] = useState({
     finalReportDate: new Date().toISOString().split('T')[0],
     overallOutcome: '',
@@ -632,7 +669,7 @@ function FinalReportForm({ partnership, onSave, onCancel }: any) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // If file is uploaded, upload it first
     let reportPath = '';
     if (formData.finalReportFile) {
@@ -723,7 +760,17 @@ function FinalReportForm({ partnership, onSave, onCancel }: any) {
   );
 }
 
-function SatisfactionForm({ partnership, onSave, onCancel }: any) {
+type SatisfactionFormPayload = {
+  satisfactionRating: string;
+};
+
+type SatisfactionFormProps = {
+  partnership: NGOPartnership;
+  onSave: (data: SatisfactionFormPayload) => void;
+  onCancel: () => void;
+};
+
+function SatisfactionForm({ partnership, onSave, onCancel }: SatisfactionFormProps) {
   const [formData, setFormData] = useState({
     satisfactionRating: partnership.satisfactionRating || '',
   });

@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, Gavel, Scale, FileText, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Gavel, Scale, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CaseOffence {
@@ -42,7 +41,6 @@ interface CaseOffence {
 export default function ChargeDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
   const [charge, setCharge] = useState<CaseOffence | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'details' | 'plea' | 'trial' | 'verdict' | 'appeal'>('details');
@@ -51,11 +49,7 @@ export default function ChargeDetailPage() {
   const [showVerdictForm, setShowVerdictForm] = useState(false);
   const [showAppealForm, setShowAppealForm] = useState(false);
 
-  useEffect(() => {
-    fetchCharge();
-  }, [params.chargeId]);
-
-  const fetchCharge = async () => {
+  const fetchCharge = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/charges`);
       if (response.ok) {
@@ -74,9 +68,13 @@ export default function ChargeDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.chargeId, params.id, router]);
 
-  const handleUpdate = async (field: string, value: any) => {
+  useEffect(() => {
+    fetchCharge();
+  }, [fetchCharge]);
+
+  const handleUpdate = async (field: string, value: unknown) => {
     try {
       const response = await fetch(`/api/cases/${params.id}/charges/${params.chargeId}`, {
         method: 'PATCH',
@@ -91,16 +89,17 @@ export default function ChargeDetailPage() {
 
       toast.success('Charge updated successfully');
       fetchCharge();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating charge:', error);
-      toast.error(error.message || 'Failed to update charge');
+      const message = error instanceof Error ? error.message : 'Failed to update charge';
+      toast.error(message);
     }
   };
 
   const getPleaColor = (plea?: string) => {
     if (!plea) return 'default';
     switch (plea) {
-      case 'GUILTY': return 'error';
+      case 'GUILTY': return 'danger';
       case 'NOT_GUILTY': return 'success';
       case 'NO_CONTEST': return 'warning';
       default: return 'default';
@@ -110,10 +109,10 @@ export default function ChargeDetailPage() {
   const getVerdictColor = (verdict?: string) => {
     if (!verdict) return 'default';
     switch (verdict) {
-      case 'GUILTY': return 'error';
+      case 'GUILTY': return 'danger';
       case 'NOT_GUILTY': return 'success';
       case 'ACQUITTED': return 'success';
-      case 'CONVICTED': return 'error';
+      case 'CONVICTED': return 'danger';
       default: return 'default';
     }
   };
@@ -530,7 +529,19 @@ export default function ChargeDetailPage() {
 }
 
 // Form Components
-function PleaForm({ charge, onSave, onCancel }: any) {
+type PleaFormData = {
+  pleaType: string;
+  pleaDate: string;
+  pleaDetails: string;
+};
+
+type PleaFormProps = {
+  charge: CaseOffence;
+  onSave: (data: PleaFormData) => void;
+  onCancel: () => void;
+};
+
+function PleaForm({ charge, onSave, onCancel }: PleaFormProps) {
   const [formData, setFormData] = useState({
     pleaType: charge.pleaType || '',
     pleaDate: charge.pleaDate ? new Date(charge.pleaDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -591,7 +602,21 @@ function PleaForm({ charge, onSave, onCancel }: any) {
   );
 }
 
-function TrialScheduleForm({ charge, onSave, onCancel }: any) {
+type TrialScheduleFormData = {
+  courtDate: string;
+  courtLocation: string;
+  judgeName: string;
+  prosecutorName: string;
+  defenseAttorneyName: string;
+};
+
+type TrialScheduleFormProps = {
+  charge: CaseOffence;
+  onSave: (data: TrialScheduleFormData) => void;
+  onCancel: () => void;
+};
+
+function TrialScheduleForm({ charge, onSave, onCancel }: TrialScheduleFormProps) {
   const [formData, setFormData] = useState({
     courtDate: charge.courtDate ? new Date(charge.courtDate).toISOString().split('T')[0] : '',
     courtLocation: charge.courtLocation || '',
@@ -672,7 +697,21 @@ function TrialScheduleForm({ charge, onSave, onCancel }: any) {
   );
 }
 
-function VerdictForm({ charge, onSave, onCancel }: any) {
+type VerdictFormData = {
+  verdictType: string;
+  verdictDate: string;
+  verdictDetails: string;
+  sentenceType: string;
+  sentenceDetails: string;
+};
+
+type VerdictFormProps = {
+  charge: CaseOffence;
+  onSave: (data: VerdictFormData) => void;
+  onCancel: () => void;
+};
+
+function VerdictForm({ charge, onSave, onCancel }: VerdictFormProps) {
   const [formData, setFormData] = useState({
     verdictType: charge.verdictType || '',
     verdictDate: charge.verdictDate ? new Date(charge.verdictDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -770,7 +809,19 @@ function VerdictForm({ charge, onSave, onCancel }: any) {
   );
 }
 
-function AppealForm({ charge, onSave, onCancel }: any) {
+type AppealFormData = {
+  appealFiled: boolean;
+  appealDate: string;
+  appealOutcome: string;
+};
+
+type AppealFormProps = {
+  charge: CaseOffence;
+  onSave: (data: AppealFormData) => void;
+  onCancel: () => void;
+};
+
+function AppealForm({ charge, onSave, onCancel }: AppealFormProps) {
   const [formData, setFormData] = useState({
     appealFiled: true,
     appealDate: new Date().toISOString().split('T')[0],

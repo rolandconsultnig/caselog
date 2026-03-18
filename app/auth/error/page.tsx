@@ -20,7 +20,7 @@ export default function AuthErrorPage() {
             There was a problem signing you in. Please try again.
           </p>
           <Link
-            href="/auth/signin"
+            href="/auth/select-state"
             className="inline-block bg-green-600 text-white py-2 px-6 rounded-md hover:bg-green-700 transition-colors"
           >
             Back to Sign In

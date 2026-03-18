@@ -1,13 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getPermissions } from '@/lib/permissions';
 import { TenantType } from '@prisma/client';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { reportId: string } }
-) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -22,10 +19,6 @@ export async function GET(
     if (!permissions.canGenerateReports) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-
-    const { searchParams } = new URL(request.url);
-    const format = searchParams.get('format') || 'pdf';
-    const reportId = params.reportId;
 
     // In production, fetch the saved report and export it
     // For now, redirect to the main export endpoint

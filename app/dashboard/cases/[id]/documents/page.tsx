@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -28,16 +27,10 @@ interface CaseFile {
 
 export default function CaseDocumentsPage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
   const [documents, setDocuments] = useState<CaseFile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDocuments();
-  }, [params.id]);
-
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/documents`);
       if (response.ok) {
@@ -49,7 +42,11 @@ export default function CaseDocumentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const getFileTypeColor = (type: string) => {
     switch (type) {
@@ -57,7 +54,7 @@ export default function CaseDocumentsPage() {
       case 'FORENSIC_REPORT': return 'warning';
       case 'LEGAL_DOCUMENT': return 'default';
       case 'EVIDENCE_PHOTO': return 'success';
-      case 'WITNESS_STATEMENT': return 'error';
+      case 'WITNESS_STATEMENT': return 'danger';
       default: return 'default';
     }
   };
@@ -67,7 +64,7 @@ export default function CaseDocumentsPage() {
       case 'PUBLIC': return 'success';
       case 'INTERNAL': return 'info';
       case 'RESTRICTED': return 'warning';
-      case 'CONFIDENTIAL': return 'error';
+      case 'CONFIDENTIAL': return 'danger';
       default: return 'default';
     }
   };

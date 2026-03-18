@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -23,7 +23,7 @@ export default function NewCustodyTransferPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
-  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>(
+  const [selectedEvidenceId] = useState<string>(
     searchParams?.get('evidenceId') || ''
   );
 
@@ -64,11 +64,7 @@ export default function NewCustodyTransferPage() {
     notes: '',
   });
 
-  useEffect(() => {
-    fetchEvidence();
-  }, [params.id]);
-
-  const fetchEvidence = async () => {
+  const fetchEvidence = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/evidence`);
       if (response.ok) {
@@ -79,7 +75,11 @@ export default function NewCustodyTransferPage() {
       console.error('Error fetching evidence:', error);
       toast.error('Failed to load evidence items');
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchEvidence();
+  }, [fetchEvidence]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +91,6 @@ export default function NewCustodyTransferPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          evidenceId: formData.evidenceId,
           ...formData,
         }),
       });
@@ -103,9 +102,10 @@ export default function NewCustodyTransferPage() {
 
       toast.success('Custody transfer recorded successfully');
       router.push(`/dashboard/cases/${params.id}/custody`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating custody transfer:', error);
-      toast.error(error.message || 'Failed to create custody transfer');
+      const message = error instanceof Error ? error.message : 'Failed to create custody transfer';
+      toast.error(message);
     } finally {
       setLoading(false);
     }

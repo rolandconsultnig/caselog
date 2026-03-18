@@ -7,7 +7,7 @@ interface FacialData {
   facialRecognitionId: string;
   embeddings: number[];
   confidence: number;
-  landmarks: any;
+  landmarks: Record<string, { x: number; y: number }>;
   metadata: {
     imageQuality: number;
     faceDetected: boolean;
@@ -79,6 +79,8 @@ export async function searchMatchingFaces(
   threshold: number = 0.8
 ): Promise<MatchResult[]> {
   try {
+    void embeddings;
+    void threshold;
     // In production, this would:
     // 1. Query database for all facial embeddings
     // 2. Calculate cosine similarity
@@ -132,6 +134,7 @@ export async function validateImageQuality(
   quality: number;
 }> {
   try {
+    void imageBuffer;
     // In production, check:
     // - Image resolution
     // - Brightness
@@ -144,7 +147,7 @@ export async function validateImageQuality(
       issues: [],
       quality: 0.92,
     };
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       issues: ['Failed to validate image'],

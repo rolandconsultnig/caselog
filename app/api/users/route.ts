@@ -3,10 +3,10 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { getPermissions } from '@/lib/permissions';
-import { TenantType } from '@prisma/client';
+import { Prisma, TenantType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause for tenant filtering
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
     
     // State admins can only see users from their own state
     // Federal users can see all users
@@ -77,8 +77,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { firstName, lastName, email, password, accessLevel, tenantId } = body;
+    const username: string =
+      typeof body.username === 'string' && body.username.trim()
+        ? body.username.trim()
+        : typeof email === 'string'
+          ? email.split('@')[0]
+          : '';
 
-    if (!firstName || !lastName || !email || !password || !accessLevel || !tenantId) {
+    if (!firstName || !lastName || !email || !password || !accessLevel || !tenantId || !username) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -117,12 +123,13 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
+        username,
         firstName,
         lastName,
         email,
         password: hashedPassword,
         accessLevel,
-        tenantId,
+        tenant: { connect: { id: tenantId } },
       },
     });
 

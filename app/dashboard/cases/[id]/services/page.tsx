@@ -25,8 +25,8 @@ interface CaseService {
 
 export default function CaseServicesPage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
+  useRouter();
+  useSession();
   const [services, setServices] = useState<CaseService[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,8 +52,8 @@ export default function CaseServicesPage() {
     switch (urgency) {
       case 'LOW': return 'default';
       case 'MEDIUM': return 'warning';
-      case 'HIGH': return 'error';
-      case 'CRITICAL': return 'error';
+      case 'HIGH': return 'danger';
+      case 'CRITICAL': return 'danger';
       default: return 'default';
     }
   };
@@ -63,7 +63,7 @@ export default function CaseServicesPage() {
       case 'REFERRED': return 'info';
       case 'IN_PROGRESS': return 'warning';
       case 'COMPLETED': return 'success';
-      case 'CANCELLED': return 'error';
+      case 'CANCELLED': return 'danger';
       default: return 'default';
     }
   };
@@ -73,7 +73,7 @@ export default function CaseServicesPage() {
       case 'PENDING': return 'warning';
       case 'PAID': return 'success';
       case 'WAIVED': return 'info';
-      case 'OVERDUE': return 'error';
+      case 'OVERDUE': return 'danger';
       default: return 'default';
     }
   };

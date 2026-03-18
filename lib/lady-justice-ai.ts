@@ -207,7 +207,7 @@ function generateResponse(
  * Get case-specific recommendations
  */
 export async function getCaseRecommendations(
-  caseData: any
+  caseData: Record<string, unknown>
 ): Promise<{
   recommendations: string[];
   nextSteps: string[];
@@ -218,27 +218,30 @@ export async function getCaseRecommendations(
   const warnings: string[] = [];
   
   // Analyze case and provide recommendations
-  if (caseData.status === 'NEW') {
+  const status = caseData.status;
+  if (status === 'NEW') {
     nextSteps.push('Conduct initial victim interview');
     nextSteps.push('Arrange medical examination if needed');
     nextSteps.push('Begin evidence collection');
   }
   
-  if (caseData.priority === 'URGENT' || caseData.priority === 'CRITICAL') {
+  const priority = caseData.priority;
+  if (priority === 'URGENT' || priority === 'CRITICAL') {
     warnings.push('This is a high-priority case requiring immediate attention');
     recommendations.push('Expedite investigation process');
     recommendations.push('Ensure victim safety measures are in place');
   }
   
-  if (!caseData.medicalExamCompleted) {
+  if (caseData.medicalExamCompleted !== true) {
     recommendations.push('Schedule medical examination within 72 hours');
   }
   
-  if (caseData.witnesses?.length === 0) {
+  const witnesses = Array.isArray(caseData.witnesses) ? caseData.witnesses : [];
+  if (witnesses.length === 0) {
     recommendations.push('Identify and interview potential witnesses');
   }
   
-  if (!caseData.evidenceCollected) {
+  if (caseData.evidenceCollected !== true) {
     warnings.push('No evidence has been collected yet');
     nextSteps.push('Initiate evidence collection immediately');
   }
@@ -264,6 +267,8 @@ export async function searchLegalPrecedents(
   }>;
 }> {
   // In production, search legal database
+  void offenceType;
+  void keywords;
   return {
     precedents: [
       {
@@ -279,10 +284,11 @@ export async function searchLegalPrecedents(
  * Generate case summary using AI
  */
 export async function generateCaseSummary(
-  caseData: any
+  caseData: Record<string, unknown>
 ): Promise<string> {
   // In production, use AI to generate comprehensive summary
-  return `Case Summary: ${caseData.title}\n\nThis is an AI-generated summary of the case details, key facts, and current status.`;
+  const title = typeof caseData.title === 'string' ? caseData.title : 'N/A';
+  return `Case Summary: ${title}\n\nThis is an AI-generated summary of the case details, key facts, and current status.`;
 }
 
 /**

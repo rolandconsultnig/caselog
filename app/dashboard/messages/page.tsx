@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
-import { MessageSquare, Search, RefreshCw, Clock, Users } from 'lucide-react';
+import { MessageSquare, Search, RefreshCw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import Link from 'next/link';
@@ -24,7 +24,7 @@ interface Case {
 }
 
 export default function MessagesPage() {
-  const { data: session } = useSession();
+  useSession();
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

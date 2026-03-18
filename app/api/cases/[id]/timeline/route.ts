@@ -3,6 +3,23 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+type TimelineEvent = {
+  id: string;
+  type: 'created' | 'updated' | 'approved' | 'rejected' | 'status_change' | 'assigned' | 'comment';
+  title: string;
+  description: string;
+  timestamp: string;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  } | null;
+  metadata: {
+    action: string;
+    entityType: string;
+  };
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -42,13 +59,18 @@ export async function GET(
     });
 
     // Build timeline events
-    const events = auditLogs.map((log) => ({
+    const events: TimelineEvent[] = auditLogs.map((log) => ({
       id: log.id,
       type: mapActionToType(log.action),
       title: log.action.replace(/_/g, ' '),
       description: log.description || log.notes || '',
       timestamp: log.timestamp.toISOString(),
-      user: log.user,
+      user: log.user
+        ? {
+            ...log.user,
+            email: log.user.email ?? '',
+          }
+        : null,
       metadata: {
         action: log.action,
         entityType: log.entityType,
@@ -64,10 +86,10 @@ export async function GET(
         title: 'Case Created',
         description: `Case ${caseRecord.caseNumber} was created`,
         timestamp: caseRecord.createdAt.toISOString(),
-        user: null as any,
+        user: null,
         metadata: {
-          action: 'CREATE' as any,
-          entityType: 'CASE' as any,
+          action: 'CREATE',
+          entityType: 'CASE',
         },
       });
     }
@@ -82,11 +104,11 @@ export async function GET(
           title: 'Case Approved',
           description: 'Case was approved',
           timestamp: caseRecord.updatedAt.toISOString(),
-          user: null as any,
+          user: null,
           metadata: {
-          action: 'CREATE' as any,
-          entityType: 'CASE' as any,
-        },
+            action: 'CREATE',
+            entityType: 'CASE',
+          },
         });
       }
     }

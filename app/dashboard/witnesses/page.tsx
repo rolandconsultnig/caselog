@@ -24,7 +24,7 @@ interface Witness {
 }
 
 export default function WitnessesPage() {
-  const { data: session } = useSession();
+  useSession();
   const [witnesses, setWitnesses] = useState<Witness[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');

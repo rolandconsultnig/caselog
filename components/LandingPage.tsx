@@ -9,17 +9,13 @@ import {
   MapPin, 
   Heart, 
   Users, 
-  Hospital,
   FileText,
   AlertCircle,
   Clock,
   Building2,
   Scale,
   Stethoscope,
-  Home,
-  UserCheck,
   ArrowRight,
-  ExternalLink,
   Search,
   Calendar,
   TrendingUp,
@@ -93,13 +89,15 @@ export default function LandingPage() {
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <Image 
-                src="/coat-of-arms.png" 
-                alt="Nigerian Coat of Arms" 
-                width={32} 
-                height={32}
-                className="object-contain"
-              />
+              <span className="relative w-8 h-8 flex-shrink-0">
+                <Image
+                  src="/coat-of-arms.png"
+                  alt="Nigerian Coat of Arms"
+                  fill
+                  sizes="32px"
+                  className="object-contain"
+                />
+              </span>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">SGBV Information System</h1>
                 <p className="text-xs text-gray-600">Ministry of Justice</p>
@@ -246,13 +244,15 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <Image 
-                src="/coat-of-arms.png" 
-                alt="Nigerian Coat of Arms" 
-                width={40} 
-                height={40}
-                className="object-contain"
-              />
+              <span className="relative w-10 h-10 flex-shrink-0">
+                <Image
+                  src="/coat-of-arms.png"
+                  alt="Nigerian Coat of Arms"
+                  fill
+                  sizes="40px"
+                  className="object-contain"
+                />
+              </span>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
                 About the Sexual and Gender-Based Violence Information System
               </h2>
@@ -280,13 +280,15 @@ export default function LandingPage() {
               <h4 className="text-xl font-bold text-gray-900 mb-4">Key Features</h4>
               <ul className="space-y-3 text-gray-700">
                 <li className="flex items-start">
-                  <Image 
-                    src="/coat-of-arms.png" 
-                    alt="Nigerian Coat of Arms" 
-                    width={20} 
-                    height={20}
-                    className="mr-3 mt-1 flex-shrink-0 object-contain"
-                  />
+                  <span className="relative w-5 h-5 mr-3 mt-1 flex-shrink-0">
+                    <Image
+                      src="/coat-of-arms.png"
+                      alt="Nigerian Coat of Arms"
+                      fill
+                      sizes="20px"
+                      className="object-contain"
+                    />
+                  </span>
                   <span><strong>Secure Reporting:</strong> Confidential incident reporting with end-to-end encryption</span>
                 </li>
                 <li className="flex items-start">
@@ -571,7 +573,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Minister's Message Section */}
+      {/* Minister&apos;s Message Section */}
       <section className="py-20 bg-gradient-to-br from-gray-50 to-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12 border-l-4 border-green-600">
@@ -591,7 +593,7 @@ export default function LandingPage() {
               </div>
             </div>
             
-            {/* Minister's Photo */}
+            {/* Minister&apos;s Photo */}
             <div className="flex flex-col md:flex-row gap-8 mb-8">
               <div className="flex-shrink-0">
                 <img 
@@ -607,7 +609,7 @@ export default function LandingPage() {
                 </p>
                 
                 <p className="text-lg leading-relaxed">
-                  As the Honorable Minister of Justice and Attorney General of the Federation, I am pleased to welcome you to the <span className="inline-flex items-center gap-1"><Image src="/coat-of-arms.png" alt="Nigerian Coat of Arms" width={16} height={16} className="inline object-contain" /><strong>Sexual and Gender-Based Violence Information System</strong></span>. This platform represents our unwavering commitment to protecting the rights and dignity of all Nigerians, particularly survivors of sexual and gender-based violence.
+                  As the Honorable Minister of Justice and Attorney General of the Federation, I am pleased to welcome you to the <span className="inline-flex items-center gap-1"><span className="relative w-4 h-4 inline-block align-middle"><Image src="/coat-of-arms.png" alt="Nigerian Coat of Arms" fill sizes="16px" className="object-contain" /></span><strong>Sexual and Gender-Based Violence Information System</strong></span>. This platform represents our unwavering commitment to protecting the rights and dignity of all Nigerians, particularly survivors of sexual and gender-based violence.
                 </p>
                 
                 <p className="text-lg leading-relaxed">
@@ -689,13 +691,15 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <Image 
-                  src="/coat-of-arms.png" 
-                  alt="Nigerian Coat of Arms" 
-                  width={24} 
-                  height={24}
-                  className="object-contain"
-                />
+                <span className="relative w-6 h-6 flex-shrink-0">
+                  <Image
+                    src="/coat-of-arms.png"
+                    alt="Nigerian Coat of Arms"
+                    fill
+                    sizes="24px"
+                    className="object-contain"
+                  />
+                </span>
                 <h3 className="font-bold text-lg">SGBV Information System</h3>
               </div>
               <p className="text-gray-400 text-sm">

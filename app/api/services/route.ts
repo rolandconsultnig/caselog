@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma, ServiceStatus } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,10 +15,12 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const caseId = searchParams.get('caseId');
 
-    const where: any = {};
+    const where: Prisma.CaseServiceWhereInput = {};
     
     if (status && status !== 'all') {
-      where.serviceStatus = status;
+      if ((Object.values(ServiceStatus) as string[]).includes(status)) {
+        where.serviceStatus = status as ServiceStatus;
+      }
     }
     
     if (caseId) {

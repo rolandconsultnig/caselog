@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     const completed = searchParams.get('completed');
     const caseId = searchParams.get('caseId');
 
-    const where: any = {};
+    const where: Prisma.CaseCivilSocietyWhereInput = {};
     
     if (active === 'true') {
       where.supportEndDate = null;

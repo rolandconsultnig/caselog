@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, DollarSign, Star, CheckCircle2, Clock, MapPin } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, Star, Clock, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CaseService {
@@ -47,7 +47,7 @@ interface CaseService {
 export default function ServiceDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  useSession();
   const [service, setService] = useState<CaseService | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'appointment' | 'tracking' | 'cost' | 'satisfaction'>('overview');
@@ -80,7 +80,7 @@ export default function ServiceDetailPage() {
     }
   };
 
-  const handleUpdate = async (field: string, value: any) => {
+  const handleUpdate = async (field: string, value: unknown) => {
     try {
       const response = await fetch(`/api/cases/${params.id}/services/${params.serviceId}`, {
         method: 'PATCH',
@@ -95,9 +95,15 @@ export default function ServiceDetailPage() {
 
       toast.success('Service updated successfully');
       fetchService();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating service:', error);
-      toast.error(error.message || 'Failed to update service');
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error !== null && 'message' in error
+            ? String((error as { message?: unknown }).message)
+            : undefined;
+      toast.error(message || 'Failed to update service');
     }
   };
 
@@ -150,7 +156,7 @@ export default function ServiceDetailPage() {
             <Badge variant={service.serviceStatus === 'COMPLETED' ? 'success' : 'warning'}>
               {service.serviceStatus}
             </Badge>
-            <Badge variant={service.urgency === 'CRITICAL' ? 'error' : 'default'}>
+            <Badge variant={service.urgency === 'CRITICAL' ? 'danger' : 'default'}>
               {service.urgency}
             </Badge>
           </div>
@@ -328,7 +334,7 @@ export default function ServiceDetailPage() {
                         {service.appointmentConfirmed ? 'Confirmed' : 'Pending Confirmation'}
                       </Badge>
                       {service.appointmentAttended !== undefined && (
-                        <Badge variant={service.appointmentAttended ? 'success' : 'error'}>
+                        <Badge variant={service.appointmentAttended ? 'success' : 'danger'}>
                           {service.appointmentAttended ? 'Attended' : 'Not Attended'}
                         </Badge>
                       )}
@@ -506,7 +512,57 @@ export default function ServiceDetailPage() {
 }
 
 // Form Components
-function AppointmentForm({ service, onSave, onCancel }: any) {
+type AppointmentPayload = {
+  appointmentDate: string;
+  appointmentTime: string;
+  appointmentLocation: string;
+  appointmentConfirmed: boolean;
+  appointmentScheduled: true;
+};
+
+type TrackingPayload = {
+  serviceStatus: string;
+  serviceStartDate?: string;
+  serviceEndDate?: string;
+  appointmentAttended?: boolean;
+  appointmentOutcome?: string;
+};
+
+type CostPayload = {
+  cost: number | null;
+  fundingSource: string;
+  paymentStatus: string;
+};
+
+type SatisfactionPayload = {
+  satisfactionLevel: string;
+  satisfactionNotes: string;
+};
+
+interface AppointmentFormProps {
+  service: CaseService;
+  onSave: (data: AppointmentPayload) => void;
+  onCancel: () => void;
+}
+
+interface ServiceTrackingFormProps {
+  service: CaseService;
+  onUpdate: (data: TrackingPayload) => void;
+}
+
+interface CostFormProps {
+  service: CaseService;
+  onSave: (data: CostPayload) => void;
+  onCancel: () => void;
+}
+
+interface SatisfactionFormProps {
+  service: CaseService;
+  onSave: (data: SatisfactionPayload) => void;
+  onCancel: () => void;
+}
+
+function AppointmentForm({ service, onSave, onCancel }: AppointmentFormProps) {
   const [formData, setFormData] = useState({
     appointmentDate: service.appointmentDate ? new Date(service.appointmentDate).toISOString().split('T')[0] : '',
     appointmentTime: service.appointmentTime || '',
@@ -576,7 +632,7 @@ function AppointmentForm({ service, onSave, onCancel }: any) {
   );
 }
 
-function ServiceTrackingForm({ service, onUpdate }: any) {
+function ServiceTrackingForm({ service, onUpdate }: ServiceTrackingFormProps) {
   const [formData, setFormData] = useState({
     serviceStatus: service.serviceStatus || 'REFERRED',
     serviceStartDate: service.serviceStartDate ? new Date(service.serviceStartDate).toISOString().split('T')[0] : '',
@@ -666,7 +722,7 @@ function ServiceTrackingForm({ service, onUpdate }: any) {
   );
 }
 
-function CostForm({ service, onSave, onCancel }: any) {
+function CostForm({ service, onSave, onCancel }: CostFormProps) {
   const [formData, setFormData] = useState({
     cost: service.cost?.toString() || '',
     fundingSource: service.fundingSource || '',
@@ -729,7 +785,7 @@ function CostForm({ service, onSave, onCancel }: any) {
   );
 }
 
-function SatisfactionForm({ service, onSave, onCancel }: any) {
+function SatisfactionForm({ service, onSave, onCancel }: SatisfactionFormProps) {
   const [formData, setFormData] = useState({
     satisfactionLevel: service.satisfactionLevel || '',
     satisfactionNotes: service.satisfactionNotes || '',

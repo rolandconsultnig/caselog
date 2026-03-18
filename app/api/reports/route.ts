@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions } from '@/lib/permissions';
-import { TenantType } from '@prisma/client';
+import { CasePriority, CaseStatus, CaseType, Jurisdiction, Prisma, TenantType } from '@prisma/client';
 
 // GET /api/reports - Generate custom reports
 export async function GET(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const jurisdiction = searchParams.get('jurisdiction');
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.CaseWhereInput = {};
 
     // Tenant filtering
     if (session.user.tenantType !== 'FEDERAL') {
@@ -53,15 +53,22 @@ export async function GET(request: NextRequest) {
 
     // Advanced filters
     if (sgbvType) {
-      where.formOfSGBV = sgbvType;
+      // Map legacy query param `sgbvType` to the `caseType` enum field
+      if (Object.values(CaseType).includes(sgbvType as CaseType)) {
+        where.caseType = sgbvType as CaseType;
+      }
     }
 
     if (status) {
-      where.status = status;
+      if (Object.values(CaseStatus).includes(status as CaseStatus)) {
+        where.status = status as CaseStatus;
+      }
     }
 
     if (priority) {
-      where.priority = priority;
+      if (Object.values(CasePriority).includes(priority as CasePriority)) {
+        where.priority = priority as CasePriority;
+      }
     }
 
     if (state) {
@@ -72,7 +79,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (jurisdiction) {
-      where.jurisdiction = jurisdiction;
+      if (Object.values(Jurisdiction).includes(jurisdiction as Jurisdiction)) {
+        where.jurisdiction = jurisdiction as Jurisdiction;
+      }
     }
 
     switch (reportType) {
@@ -100,7 +109,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function generateSummaryReport(where: any) {
+async function generateSummaryReport(where: Prisma.CaseWhereInput) {
   const [
     totalCases,
     statusBreakdown,
@@ -136,7 +145,7 @@ async function generateSummaryReport(where: any) {
   });
 }
 
-async function generateDetailedReport(where: any) {
+async function generateDetailedReport(where: Prisma.CaseWhereInput) {
   const cases = await prisma.case.findMany({
     where,
     include: {
@@ -163,7 +172,7 @@ async function generateDetailedReport(where: any) {
   });
 }
 
-async function generateTrendsReport(where: any) {
+async function generateTrendsReport(where: Prisma.CaseWhereInput) {
   // Get cases grouped by month
   const cases = await prisma.case.findMany({
     where,
@@ -176,7 +185,14 @@ async function generateTrendsReport(where: any) {
   });
 
   // Group by month
-  const monthlyData = cases.reduce((acc: any, caseItem) => {
+  type MonthlyBucket = {
+    month: string;
+    total: number;
+    byStatus: Record<string, number>;
+    byType: Record<string, number>;
+  };
+
+  const monthlyData = cases.reduce<Record<string, MonthlyBucket>>((acc, caseItem) => {
     const month = new Date(caseItem.createdAt).toISOString().slice(0, 7);
     if (!acc[month]) {
       acc[month] = {
@@ -199,40 +215,7 @@ async function generateTrendsReport(where: any) {
   });
 }
 
-async function generatePerformanceReport(where: any) {
-  const [
-    totalCases,
-    approvedCases,
-    rejectedCases,
-    pendingCases,
-    averageApprovalTime,
-  ] = await Promise.all([
-    prisma.case.count({ where }),
-    prisma.case.count({ where: { ...where, status: 'APPROVED' } }),
-    prisma.case.count({ where: { ...where, status: 'REJECTED' } }),
-    prisma.case.count({ where: { ...where, status: 'PENDING_APPROVAL' } }),
-    calculateAverageApprovalTime(where),
-  ]);
-
-  const approvalRate = totalCases > 0 ? (approvedCases / totalCases) * 100 : 0;
-  const rejectionRate = totalCases > 0 ? (rejectedCases / totalCases) * 100 : 0;
-
-  return NextResponse.json({
-    reportType: 'performance',
-    generatedAt: new Date().toISOString(),
-    data: {
-      totalCases,
-      approvedCases,
-      rejectedCases,
-      pendingCases,
-      approvalRate: approvalRate.toFixed(2),
-      rejectionRate: rejectionRate.toFixed(2),
-      averageApprovalTime,
-    },
-  });
-}
-
-async function calculateResolutionRate(where: any) {
+async function calculateResolutionRate(where: Prisma.CaseWhereInput) {
   const total = await prisma.case.count({ where });
   const resolved = await prisma.case.count({
     where: {
@@ -243,11 +226,10 @@ async function calculateResolutionRate(where: any) {
   return total > 0 ? ((resolved / total) * 100).toFixed(2) : '0.00';
 }
 
-async function calculateAverageProcessingTime(where: any) {
+async function calculateAverageProcessingTime(where: Prisma.CaseWhereInput) {
   const cases = await prisma.case.findMany({
     where: {
       ...where,
-      updatedAt: { not: null },
     },
     select: {
       createdAt: true,
@@ -263,28 +245,5 @@ async function calculateAverageProcessingTime(where: any) {
   }, 0);
 
   return (totalDays / cases.length).toFixed(1);
-}
-
-async function calculateAverageApprovalTime(where: any) {
-  const cases = await prisma.case.findMany({
-    where: {
-      ...where,
-      status: 'APPROVED',
-      updatedAt: { not: null },
-    },
-    select: {
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  if (cases.length === 0) return 0;
-
-  const totalHours = cases.reduce((sum, caseItem) => {
-    const diff = new Date(caseItem.updatedAt).getTime() - new Date(caseItem.createdAt).getTime();
-    return sum + diff / (1000 * 60 * 60);
-  }, 0);
-
-  return (totalHours / cases.length).toFixed(1);
 }
 

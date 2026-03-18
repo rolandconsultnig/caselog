@@ -12,7 +12,6 @@ import {
   Calendar,
   User,
   ArrowLeft,
-  Share2,
   Printer,
 } from 'lucide-react';
 import axios from 'axios';
@@ -30,14 +29,18 @@ interface Report {
     lastName: string;
     email: string;
   };
-  config: any;
-  data: any;
+  config: unknown;
+  data: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 export default function ReportDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  useSession();
   const reportId = params?.reportId as string;
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +55,12 @@ export default function ReportDetailPage() {
     try {
       const response = await axios.get(`/api/reports/${reportId}`);
       setReport(response.data);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load report');
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      toast.error(message || 'Failed to load report');
       router.push('/dashboard/reports');
     } finally {
       setLoading(false);
@@ -73,7 +80,7 @@ export default function ReportDetailPage() {
       link.click();
       link.remove();
       toast.success(`Report exported as ${format.toUpperCase()}`);
-    } catch (error: any) {
+    } catch {
       toast.error(`Failed to export report as ${format.toUpperCase()}`);
     }
   };
@@ -105,6 +112,9 @@ export default function ReportDetailPage() {
       </DashboardLayout>
     );
   }
+
+  const reportDataObj = isRecord(report.data) ? report.data : {};
+  const reportDataArray = Array.isArray(report.data) ? report.data : [];
 
   return (
     <DashboardLayout>
@@ -202,29 +212,33 @@ export default function ReportDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {/* Summary Report */}
-              {report.reportType === 'summary' && report.data && (
+              {report.reportType === 'summary' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Total Cases</p>
-                      <p className="text-2xl font-bold text-blue-600">{report.data.totalCases || 0}</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {typeof reportDataObj.totalCases === 'number' ? reportDataObj.totalCases : 0}
+                      </p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Resolution Rate</p>
                       <p className="text-2xl font-bold text-green-600">
-                        {report.data.resolutionRate || 0}%
+                        {typeof reportDataObj.resolutionRate === 'number' ? reportDataObj.resolutionRate : 0}%
                       </p>
                     </div>
                     <div className="bg-orange-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Avg Processing Time</p>
                       <p className="text-2xl font-bold text-orange-600">
-                        {report.data.averageProcessingTime || 0} days
+                        {typeof reportDataObj.averageProcessingTime === 'number'
+                          ? reportDataObj.averageProcessingTime
+                          : 0}{' '}
+                        days
                       </p>
                     </div>
                   </div>
 
-                  {report.data.statusBreakdown && (
+                  {Array.isArray(reportDataObj.statusBreakdown) && (
                     <div>
                       <h3 className="font-semibold mb-3">Status Breakdown</h3>
                       <div className="overflow-x-auto">
@@ -236,19 +250,26 @@ export default function ReportDetailPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {report.data.statusBreakdown.map((item: any, index: number) => (
-                              <tr key={index}>
-                                <td className="px-4 py-2 border">{item.status}</td>
-                                <td className="px-4 py-2 border">{item._count}</td>
-                              </tr>
-                            ))}
+                            {(reportDataObj.statusBreakdown as unknown[]).map((item, index) => {
+                              const row = isRecord(item) ? item : {};
+                              return (
+                                <tr key={index}>
+                                  <td className="px-4 py-2 border">
+                                    {typeof row.status === 'string' ? row.status : ''}
+                                  </td>
+                                  <td className="px-4 py-2 border">
+                                    {row._count != null ? String(row._count) : ''}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
                     </div>
                   )}
 
-                  {report.data.typeBreakdown && (
+                  {Array.isArray(reportDataObj.typeBreakdown) && (
                     <div>
                       <h3 className="font-semibold mb-3">Type Breakdown</h3>
                       <div className="overflow-x-auto">
@@ -260,12 +281,19 @@ export default function ReportDetailPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {report.data.typeBreakdown.map((item: any, index: number) => (
-                              <tr key={index}>
-                                <td className="px-4 py-2 border">{item.formOfSGBV}</td>
-                                <td className="px-4 py-2 border">{item._count}</td>
-                              </tr>
-                            ))}
+                            {(reportDataObj.typeBreakdown as unknown[]).map((item, index) => {
+                              const row = isRecord(item) ? item : {};
+                              return (
+                                <tr key={index}>
+                                  <td className="px-4 py-2 border">
+                                    {typeof row.formOfSGBV === 'string' ? row.formOfSGBV : ''}
+                                  </td>
+                                  <td className="px-4 py-2 border">
+                                    {row._count != null ? String(row._count) : ''}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -274,8 +302,7 @@ export default function ReportDetailPage() {
                 </div>
               )}
 
-              {/* Detailed Report */}
-              {report.reportType === 'detailed' && report.data && (
+              {report.reportType === 'detailed' && reportDataArray.length > 0 && (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
@@ -288,34 +315,42 @@ export default function ReportDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {Array.isArray(report.data) &&
-                        report.data.slice(0, 100).map((caseItem: any) => (
-                          <tr key={caseItem.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-2 border">{caseItem.caseNumber}</td>
+                      {reportDataArray.slice(0, 100).map((caseItem, idx) => {
+                        const row = isRecord(caseItem) ? caseItem : {};
+                        const victim = isRecord(row.victim) ? row.victim : undefined;
+                        const key = typeof row.id === 'string' ? row.id : String(idx);
+                        return (
+                          <tr key={key} className="hover:bg-gray-50">
                             <td className="px-4 py-2 border">
-                              {caseItem.victim
-                                ? `${caseItem.victim.firstName} ${caseItem.victim.lastName}`
+                              {typeof row.caseNumber === 'string' ? row.caseNumber : ''}
+                            </td>
+                            <td className="px-4 py-2 border">
+                              {victim
+                                ? `${typeof victim.firstName === 'string' ? victim.firstName : ''} ${typeof victim.lastName === 'string' ? victim.lastName : ''}`.trim() ||
+                                  'N/A'
                                 : 'N/A'}
                             </td>
-                            <td className="px-4 py-2 border">{caseItem.formOfSGBV}</td>
-                            <td className="px-4 py-2 border">{caseItem.status}</td>
                             <td className="px-4 py-2 border">
-                              {format(new Date(caseItem.createdAt), 'MMM dd, yyyy')}
+                              {typeof row.formOfSGBV === 'string' ? row.formOfSGBV : ''}
+                            </td>
+                            <td className="px-4 py-2 border">{typeof row.status === 'string' ? row.status : ''}</td>
+                            <td className="px-4 py-2 border">
+                              {row.createdAt ? format(new Date(String(row.createdAt)), 'MMM dd, yyyy') : ''}
                             </td>
                           </tr>
-                        ))}
+                        );
+                      })}
                     </tbody>
                   </table>
-                  {Array.isArray(report.data) && report.data.length > 100 && (
+                  {reportDataArray.length > 100 && (
                     <p className="text-sm text-gray-500 mt-4">
-                      Showing first 100 of {report.data.length} cases
+                      Showing first 100 of {reportDataArray.length} cases
                     </p>
                   )}
                 </div>
               )}
 
-              {/* Trends Report */}
-              {report.reportType === 'trends' && report.data && (
+              {report.reportType === 'trends' && reportDataArray.length > 0 && (
                 <div>
                   <h3 className="font-semibold mb-3">Monthly Trends</h3>
                   <div className="overflow-x-auto">
@@ -327,44 +362,47 @@ export default function ReportDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {Array.isArray(report.data) &&
-                          report.data.map((item: any, index: number) => (
+                        {reportDataArray.map((item, index) => {
+                          const row = isRecord(item) ? item : {};
+                          return (
                             <tr key={index}>
-                              <td className="px-4 py-2 border">{item.month}</td>
-                              <td className="px-4 py-2 border">{item.total}</td>
+                              <td className="px-4 py-2 border">
+                                {typeof row.month === 'string' ? row.month : ''}
+                              </td>
+                              <td className="px-4 py-2 border">{row.total != null ? String(row.total) : ''}</td>
                             </tr>
-                          ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 </div>
               )}
 
-              {/* Performance Report */}
-              {report.reportType === 'performance' && report.data && (
+              {report.reportType === 'performance' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-green-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Approval Rate</p>
                     <p className="text-2xl font-bold text-green-600">
-                      {report.data.approvalRate || 0}%
+                      {typeof reportDataObj.approvalRate === 'number' ? reportDataObj.approvalRate : 0}%
                     </p>
                   </div>
                   <div className="bg-red-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Rejection Rate</p>
                     <p className="text-2xl font-bold text-red-600">
-                      {report.data.rejectionRate || 0}%
+                      {typeof reportDataObj.rejectionRate === 'number' ? reportDataObj.rejectionRate : 0}%
                     </p>
                   </div>
                   <div className="bg-yellow-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Pending Cases</p>
                     <p className="text-2xl font-bold text-yellow-600">
-                      {report.data.pendingCases || 0}
+                      {typeof reportDataObj.pendingCases === 'number' ? reportDataObj.pendingCases : 0}
                     </p>
                   </div>
                   <div className="bg-blue-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-600">Avg Approval Time</p>
                     <p className="text-2xl font-bold text-blue-600">
-                      {report.data.averageApprovalTime || 0} hours
+                      {typeof reportDataObj.averageApprovalTime === 'number' ? reportDataObj.averageApprovalTime : 0} hours
                     </p>
                   </div>
                 </div>

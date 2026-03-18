@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -12,6 +11,7 @@ import Link from 'next/link';
 interface CourtRecord {
   id: string;
   courtName: string;
+  trialLocation?: string;
   presidingJudge: string;
   verdict: string;
   caseNumber: string;
@@ -24,16 +24,10 @@ interface CourtRecord {
 
 export default function CaseCourtPage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
   const [courtRecords, setCourtRecords] = useState<CourtRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchCourtRecords();
-  }, [params.id]);
-
-  const fetchCourtRecords = async () => {
+  const fetchCourtRecords = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/court`);
       if (response.ok) {
@@ -45,14 +39,18 @@ export default function CaseCourtPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchCourtRecords();
+  }, [fetchCourtRecords]);
 
   const getHearingTypeColor = (type: string) => {
     switch (type) {
       case 'INITIAL': return 'info';
       case 'PRELIMINARY': return 'warning';
       case 'TRIAL': return 'default';
-      case 'SENTENCING': return 'error';
+      case 'SENTENCING': return 'danger';
       case 'APPEAL': return 'success';
       default: return 'default';
     }
@@ -141,7 +139,7 @@ export default function CaseCourtPage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-3">
                         <div>
                           <span className="text-gray-500">Location:</span>
-                          <p className="font-medium">{record.courtLocation}</p>
+                          <p className="font-medium">{record.trialLocation || 'N/A'}</p>
                         </div>
                         <div>
                           <span className="text-gray-500">Presiding Judge:</span>

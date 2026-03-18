@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { askLadyJustice, getCaseRecommendations } from '@/lib/lady-justice-ai';
+import { askLadyJustice } from '@/lib/lady-justice-ai';
 
 export async function POST(request: NextRequest) {
   try {

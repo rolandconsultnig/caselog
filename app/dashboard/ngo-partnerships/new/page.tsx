@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 
 export default function NewNGOPartnershipPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  useSession();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     caseId: '',

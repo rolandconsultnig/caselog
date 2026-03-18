@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getPermissions } from '@/lib/permissions';
-import { TenantType } from '@prisma/client';
-import { subDays, subMonths, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
+import { Prisma, TenantType } from '@prisma/client';
+import { subDays, subMonths, startOfDay, endOfDay } from 'date-fns';
 
 // GET /api/statistics - Get dashboard statistics
 export async function GET(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause
-    const where: any = {
+    const where: Prisma.CaseWhereInput = {
       createdAt: {
         gte: startOfDay(dateFrom),
         lte: endOfDay(now),
@@ -65,23 +65,23 @@ export async function GET(request: NextRequest) {
       where.tenantId = tenantId;
     }
 
+    const scopeTenantId = session.user.tenantType !== 'FEDERAL' ? session.user.tenantId : tenantId;
+
     // Get comprehensive case statistics
     const [
       totalCases,
-      draftCases,
+      activeCases,
+      closedCases,
+      archivedCases,
+      investigationCases,
       pendingCases,
       approvedCases,
-      rejectedCases,
       casesByType,
       casesByState,
       recentCases,
-      // Additional analytics
-      investigationCases,
-      closedCases,
-      archivedCases,
-      highPriorityCases,
-      mediumPriorityCases,
       lowPriorityCases,
+      mediumPriorityCases,
+      highPriorityCases,
       urgentPriorityCases,
       criticalPriorityCases,
       witnessesCount,
@@ -89,11 +89,14 @@ export async function GET(request: NextRequest) {
       servicesCount,
       courtRecordsCount,
     ] = await Promise.all([
+      // Total cases
       prisma.case.count({ where }),
-      prisma.case.count({ where: { ...where, status: 'DRAFT' } }),
+      prisma.case.count({ where: { ...where, status: 'ACTIVE' } }),
+      prisma.case.count({ where: { ...where, status: 'CLOSED' } }),
+      prisma.case.count({ where: { ...where, status: 'ARCHIVED' } }),
+      prisma.case.count({ where: { ...where, status: 'INVESTIGATION' } }),
       prisma.case.count({ where: { ...where, status: 'PENDING_APPROVAL' } }),
       prisma.case.count({ where: { ...where, status: 'APPROVED' } }),
-      prisma.case.count({ where: { ...where, status: 'REJECTED' } }),
       prisma.case.groupBy({
         by: ['caseType'],
         where,
@@ -114,33 +117,55 @@ export async function GET(request: NextRequest) {
           tenant: { select: { name: true, code: true } },
         },
       }),
-      // Additional analytics queries
-      prisma.case.count({ where: { ...where, status: 'INVESTIGATION' } }),
-      prisma.case.count({ where: { ...where, status: 'CLOSED' } }),
-      prisma.case.count({ where: { ...where, status: 'ARCHIVED' } }),
-      prisma.case.count({ where: { ...where, priority: 'HIGH' } }),
-      prisma.case.count({ where: { ...where, priority: 'MEDIUM' } }),
       prisma.case.count({ where: { ...where, priority: 'LOW' } }),
+      prisma.case.count({ where: { ...where, priority: 'MEDIUM' } }),
+      prisma.case.count({ where: { ...where, priority: 'HIGH' } }),
       prisma.case.count({ where: { ...where, priority: 'URGENT' } }),
       prisma.case.count({ where: { ...where, priority: 'CRITICAL' } }),
-      prisma.witness.count({ where: { case: where } }),
-      prisma.evidence.count({ where: { case: where } }),
-      prisma.caseService.count({ where: { case: where } }),
-      prisma.courtRecord.count({ where: { case: where } }),
+      prisma.witness.count({
+        where: scopeTenantId ? { case: { tenantId: scopeTenantId } } : {},
+      }),
+      prisma.evidence.count({
+        where: scopeTenantId ? { case: { tenantId: scopeTenantId } } : {},
+      }),
+      prisma.caseService.count({
+        where: scopeTenantId ? { case: { tenantId: scopeTenantId } } : {},
+      }),
+      prisma.courtRecord.count({
+        where: scopeTenantId ? { case: { tenantId: scopeTenantId } } : {},
+      }),
     ]);
 
+    // Prisma `groupBy` with `_count: true` returns `_count` as a number.
+    type CaseGroupByCaseTypeResult = { caseType: string; _count: number };
+    type CaseGroupByTenantResult = { tenantId: string; _count: number };
+    type StateStatistic = {
+      tenantId: string;
+      tenantName: string;
+      tenantCode: string;
+      count: number;
+    };
+    type FederalMetrics = {
+      totalStates?: number;
+      activeStates?: number;
+      federalCases?: number;
+      averageCasesPerState?: number;
+      topPerformingStates?: StateStatistic[];
+      statesWithNoCases?: string[];
+    };
+
     // Get tenant names for state statistics and enhanced federal data
-    let stateStatistics: any[] = [];
-    let federalMetrics: any = {};
-    
-    if (session.user.tenantType === 'FEDERAL' && casesByState.length > 0) {
+    let stateStatistics: StateStatistic[] = [];
+    let federalMetrics: FederalMetrics = {};
+
+    if (session.user.tenantType === 'FEDERAL' && (casesByState as unknown[]).length > 0) {
       const tenants = await prisma.tenant.findMany({
         where: {
-          id: { in: casesByState.map((s: any) => s.tenantId) },
+          id: { in: (casesByState as CaseGroupByTenantResult[]).map((s) => s.tenantId) },
         },
       });
 
-      stateStatistics = casesByState.map((stat: any) => {
+      stateStatistics = (casesByState as CaseGroupByTenantResult[]).map((stat) => {
         const tenant = tenants.find((t) => t.id === stat.tenantId);
         return {
           tenantId: stat.tenantId,
@@ -153,30 +178,33 @@ export async function GET(request: NextRequest) {
       // Calculate federal-level metrics
       federalMetrics = {
         totalStates: tenants.length,
-        activeStates: tenants.filter(t => t.type === 'STATE').length,
+        activeStates: tenants.filter((t) => t.type === 'STATE').length,
         federalCases: totalCases,
         averageCasesPerState: totalCases > 0 ? Math.round(totalCases / tenants.length) : 0,
         topPerformingStates: stateStatistics
           .sort((a, b) => b.count - a.count)
           .slice(0, 5),
-        statesWithNoCases: tenants.filter(tenant => 
-          !stateStatistics.find(stat => stat.tenantId === tenant.id)
-        ).map(tenant => tenant.name),
+        statesWithNoCases: tenants.filter((tenant) =>
+          !stateStatistics.find((stat) => stat.tenantId === tenant.id)
+        ).map((tenant) => tenant.name),
       };
     }
 
     return NextResponse.json({
       summary: {
         total: totalCases,
-        draft: draftCases,
-        pending: pendingCases,
-        approved: approvedCases,
-        rejected: rejectedCases,
-        investigation: investigationCases,
+        active: activeCases,
         closed: closedCases,
         archived: archivedCases,
+        byStatus: {
+          pending: pendingCases,
+          approved: approvedCases,
+          investigation: investigationCases,
+          closed: closedCases,
+          archived: archivedCases,
+        },
       },
-      casesByType: casesByType.map((item: any) => ({
+      casesByType: (casesByType as CaseGroupByCaseTypeResult[]).map((item) => ({
         type: item.caseType,
         count: item._count,
       })),

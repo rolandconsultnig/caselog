@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -25,16 +24,10 @@ interface CaseOffence {
 
 export default function CaseChargesPage() {
   const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
   const [charges, setCharges] = useState<CaseOffence[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchCharges();
-  }, [params.id]);
-
-  const fetchCharges = async () => {
+  const fetchCharges = useCallback(async () => {
     try {
       const response = await fetch(`/api/cases/${params.id}/charges`);
       if (response.ok) {
@@ -46,11 +39,15 @@ export default function CaseChargesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchCharges();
+  }, [fetchCharges]);
 
   const getPleaColor = (plea: string) => {
     switch (plea) {
-      case 'GUILTY': return 'error';
+      case 'GUILTY': return 'danger';
       case 'NOT_GUILTY': return 'success';
       case 'NO_CONTEST': return 'warning';
       default: return 'default';
@@ -59,10 +56,10 @@ export default function CaseChargesPage() {
 
   const getVerdictColor = (verdict: string) => {
     switch (verdict) {
-      case 'GUILTY': return 'error';
+      case 'GUILTY': return 'danger';
       case 'NOT_GUILTY': return 'success';
       case 'ACQUITTED': return 'success';
-      case 'CONVICTED': return 'error';
+      case 'CONVICTED': return 'danger';
       default: return 'default';
     }
   };
@@ -73,7 +70,7 @@ export default function CaseChargesPage() {
       case 'PENDING': return 'warning';
       case 'TRIAL': return 'default';
       case 'VERDICT': return 'success';
-      case 'DISMISSED': return 'error';
+      case 'DISMISSED': return 'danger';
       default: return 'default';
     }
   };

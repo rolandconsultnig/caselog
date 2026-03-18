@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { getPermissions, canAccessCase } from '@/lib/permissions';
+import { getPermissions } from '@/lib/permissions';
 import { generateCaseNumber, logAudit } from '@/lib/utils';
-import { caseSchema } from '@/lib/validations';
-import { TenantType, CaseType, CasePriority, CaseStatus, Gender } from '@prisma/client';
+import { Prisma, TenantType, CaseType, CasePriority, CaseStatus, Gender } from '@prisma/client';
 import { generateMOJFileNumber, getStateCodeFromName } from '@/lib/generate-moj-number';
 
 // Map form SGBV types to CaseType enum
@@ -67,7 +66,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.CaseWhereInput = {};
 
     // Federal users can see all cases, state users only their own
     if (session.user.tenantType !== 'FEDERAL') {
@@ -76,16 +75,36 @@ export async function GET(request: NextRequest) {
       where.tenantId = tenantId;
     }
 
-    if (status) {
-      where.status = status;
+    if (status && Object.values(CaseStatus).includes(status as CaseStatus)) {
+      where.status = status as CaseStatus;
     }
 
     if (search) {
       where.OR = [
         { caseNumber: { contains: search, mode: 'insensitive' } },
         { mojCaseNumber: { contains: search, mode: 'insensitive' } },
-        { victim: { name: { contains: search, mode: 'insensitive' } } },
-        { perpetrator: { name: { contains: search, mode: 'insensitive' } } },
+        {
+          victims: {
+            some: {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { victimNumber: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+        {
+          perpetrators: {
+            some: {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { perpetratorNumber: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
       ];
     }
 
@@ -163,7 +182,8 @@ export async function POST(request: NextRequest) {
     // Generate MOJ File Number if not provided or empty
     let mojFileNumber = body.mojCaseNumber;
     if (!mojFileNumber || mojFileNumber.trim() === '') {
-      const stateCode = getStateCodeFromName(tenantName);
+      const stateNameForMoj = session.user.tenantType === 'FEDERAL' ? body.incidentState : tenantName;
+      const stateCode = getStateCodeFromName(stateNameForMoj);
       // Get count of cases for this state in current year for sequential number
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
@@ -206,8 +226,8 @@ export async function POST(request: NextRequest) {
       : (body.perpetrator?.age || null);
 
     // Helper to convert empty strings to null
-    const nullIfEmpty = (value: any): any => {
-      if (value === '' || value === undefined) return null;
+    const nullIfEmpty = (value: string | null | undefined): string | null => {
+      if (value === '' || value === undefined || value === null) return null;
       return value;
     };
 
@@ -243,9 +263,10 @@ export async function POST(request: NextRequest) {
         incidentState: body.incidentState.trim(),
         incidentLga: nullIfEmpty(body.incidentLga || body.incidentLGA),
         incidentAddress: nullIfEmpty(body.incidentAddress),
+        jurisdiction: session.user.tenantType === 'FEDERAL' ? 'FEDERAL' : 'STATE',
         caseType: mapFormOfSGBVToCaseType(body.formOfSGBV || body.caseType),
         priority: mapPriority(body.priority),
-        status: session.user.accessLevel === 'LEVEL_2' ? 'PENDING_APPROVAL' as any : 'NEW' as any,
+        status: session.user.accessLevel === 'LEVEL_2' ? CaseStatus.PENDING_APPROVAL : CaseStatus.NEW,
         createdById: session.user.id,
         victims: {
           create: [{
@@ -322,32 +343,34 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(newCase, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating case:', error);
     console.error('Error details:', JSON.stringify(error, null, 2));
     
     // Log detailed error for debugging
-    if (error?.issues) {
-      console.error('Validation errors:', error.issues);
+    if (typeof error === 'object' && error !== null && 'issues' in error) {
+      const issues = (error as { issues?: unknown }).issues;
+      console.error('Validation errors:', issues);
       return NextResponse.json({ 
         error: 'Validation failed', 
-        details: error.issues 
+        details: issues 
       }, { status: 400 });
     }
     
     // Prisma errors
-    if (error?.code) {
-      console.error('Prisma error code:', error.code);
-      if (error.code === 'P2002') {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const code = (error as { code?: unknown }).code;
+      console.error('Prisma error code:', code);
+      if (code === 'P2002') {
         return NextResponse.json({ 
           error: 'A case with this number already exists',
-          details: error.meta 
+          details: (error as { meta?: unknown }).meta 
         }, { status: 400 });
       }
-      if (error.code === 'P2003') {
+      if (code === 'P2003') {
         return NextResponse.json({ 
           error: 'Invalid reference to related record',
-          details: error.meta 
+          details: (error as { meta?: unknown }).meta 
         }, { status: 400 });
       }
     }

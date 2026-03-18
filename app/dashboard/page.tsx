@@ -15,8 +15,6 @@ import {
   TrendingUp,
   Users,
   Shield,
-  Briefcase,
-  Activity,
   BarChart3,
 } from 'lucide-react';
 import {
@@ -31,8 +29,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
 } from 'recharts';
 import { formatDate } from '@/lib/utils';
 import Link from 'next/link';
@@ -41,6 +37,10 @@ import { useState } from 'react';
 import { AccessLevel } from '@prisma/client';
 
 type TimeRange = '7d' | '30d' | 'all';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -73,11 +73,16 @@ export default function DashboardPage() {
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1', '#8B5CF6'];
 
   const casesByTypeData = statistics?.casesByType
-    ?.map((item: any, index: number) => ({
-      name: item.type.replace(/_/g, ' '),
-      value: item.count,
-      fill: COLORS[index % COLORS.length],
-    })) || [];
+    ?.map((item: unknown, index: number) => {
+      const row = isRecord(item) ? item : {};
+      const type = typeof row.type === 'string' ? row.type : '';
+      const count = typeof row.count === 'number' ? row.count : 0;
+      return {
+        name: type.replace(/_/g, ' '),
+        value: count,
+        fill: COLORS[index % COLORS.length],
+      };
+    }) || [];
 
   const priorityData = statistics?.priorityDistribution 
     ? Object.entries(statistics.priorityDistribution).map(([key, value], index) => ({
@@ -138,7 +143,7 @@ export default function DashboardPage() {
               Welcome back, {session.user.name}!
             </h1>
             <p className="text-gray-600 mt-1">
-              Here's your real-time analytics overview for {session.user.tenantName}.
+              Here&apos;s your real-time analytics overview for {session.user.tenantName}.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -195,7 +200,7 @@ export default function DashboardPage() {
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="value" name="Cases">
-                      {casesByTypeData.map((entry: any, index: number) => (
+                      {casesByTypeData.map((entry, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -217,26 +222,35 @@ export default function DashboardPage() {
                 {isFederal ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart 
-                      data={statistics?.casesByState?.slice(0, 10).map((state: any, index: number) => ({
-                        name: state.tenantCode || state.tenantName?.substring(0, 3) || 'Unknown',
-                        fullName: state.tenantName,
-                        value: state.count,
+                      data={statistics?.casesByState?.slice(0, 10).map((state: unknown, index: number) => {
+                        const row = isRecord(state) ? state : {};
+                        const tenantCode = typeof row.tenantCode === 'string' ? row.tenantCode : '';
+                        const tenantName = typeof row.tenantName === 'string' ? row.tenantName : '';
+                        const count = typeof row.count === 'number' ? row.count : 0;
+                        return {
+                        name: tenantCode || (tenantName ? tenantName.substring(0, 3) : '') || 'Unknown',
+                        fullName: tenantName,
+                        value: count,
                         fill: COLORS[index % COLORS.length],
-                      })) || []}
+                        };
+                      }) || []}
                       margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
-                      <Tooltip 
-                        formatter={(value: any, name: any, props: any) => [
-                          `${value} cases`,
-                          props.payload.fullName || name
-                        ]}
+                      <Tooltip
+                        formatter={(value: unknown, name: unknown, props: unknown) => {
+                          const payloadFullName =
+                            isRecord(props) && isRecord(props.payload) && typeof props.payload.fullName === 'string'
+                              ? props.payload.fullName
+                              : undefined;
+                          return [`${String(value)} cases`, payloadFullName || String(name)];
+                        }}
                       />
                       <Legend />
                       <Bar dataKey="value" name="Cases">
-                        {statistics?.casesByState?.slice(0, 10).map((entry: any, index: number) => (
+                        {statistics?.casesByState?.slice(0, 10).map((entry: unknown, index: number) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Bar>
@@ -308,15 +322,21 @@ export default function DashboardPage() {
                 <div className="mt-6">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">Top Performing States</h4>
                   <div className="space-y-2">
-                    {statistics.federalMetrics.topPerformingStates.slice(0, 5).map((state: any, index: number) => (
-                      <div key={state.tenantId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    {statistics.federalMetrics.topPerformingStates.slice(0, 5).map((state: unknown, index: number) => {
+                      const row = isRecord(state) ? state : {};
+                      const tenantId = typeof row.tenantId === 'string' ? row.tenantId : String(index);
+                      const tenantName = typeof row.tenantName === 'string' ? row.tenantName : '';
+                      const count = row.count != null ? String(row.count) : '';
+                      return (
+                      <div key={tenantId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-gray-600">#{index + 1}</span>
-                          <span className="text-sm font-medium">{state.tenantName}</span>
+                          <span className="text-sm font-medium">{tenantName}</span>
                         </div>
-                        <Badge variant="default">{state.count} cases</Badge>
+                        <Badge variant="default">{count} cases</Badge>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -335,43 +355,56 @@ export default function DashboardPage() {
                 <p className="text-gray-500">Loading...</p>
               ) : statistics?.recentCases?.length > 0 ? (
                 <div className="space-y-4">
-                  {statistics.recentCases.slice(0, 5).map((caseItem: any) => (
+                  {statistics.recentCases.slice(0, 5).map((caseItem: unknown, idx: number) => {
+                    const row = isRecord(caseItem) ? caseItem : {};
+                    const id = typeof row.id === 'string' ? row.id : String(idx);
+                    const status = typeof row.status === 'string' ? row.status : '';
+                    const caseNumber = typeof row.caseNumber === 'string' ? row.caseNumber : '';
+                    const createdAt = row.createdAt != null ? String(row.createdAt) : '';
+                    const victims = Array.isArray(row.victims) ? row.victims : [];
+                    const firstVictim = victims.length > 0 && isRecord(victims[0]) ? victims[0] : undefined;
+                    const victimName = firstVictim && typeof firstVictim.name === 'string' ? firstVictim.name : undefined;
+                    const tenant = isRecord(row.tenant) ? row.tenant : undefined;
+                    const tenantName = tenant && typeof tenant.name === 'string' ? tenant.name : undefined;
+
+                    return (
                     <Link
-                      key={caseItem.id}
-                      href={`/dashboard/cases/${caseItem.id}`}
+                      key={id}
+                      href={`/dashboard/cases/${id}`}
                       className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3">
                             <h4 className="font-semibold text-gray-900">
-                              {caseItem.caseNumber}
+                              {caseNumber}
                             </h4>
                             <Badge
                               variant={
-                                caseItem.status === 'APPROVED'
+                                status === 'APPROVED'
                                   ? 'success'
-                                  : caseItem.status === 'PENDING_APPROVAL'
+                                  : status === 'PENDING_APPROVAL'
                                   ? 'warning'
-                                  : caseItem.status === 'REJECTED'
+                                  : status === 'REJECTED'
                                   ? 'danger'
                                   : 'default'
                               }
                             >
-                              {caseItem.status.replace(/_/g, ' ')}
+                              {status.replace(/_/g, ' ')}
                             </Badge>
                           </div>
                           <p className="text-sm text-gray-600 mt-1">
-                            Victim: {caseItem.victims?.[0]?.name || 'N/A'}
+                            Victim: {victimName || 'N/A'}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {formatDate(caseItem.createdAt)}
-                            {session.user.tenantType === 'FEDERAL' && ` • ${caseItem.tenant?.name}`}
+                            {createdAt ? formatDate(createdAt) : ''}
+                            {session.user.tenantType === 'FEDERAL' && ` • ${tenantName || ''}`}
                           </p>
                         </div>
                       </div>
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-500">No cases found in this period.</p>
