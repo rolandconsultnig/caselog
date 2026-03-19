@@ -21,21 +21,62 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
-  useSession();
+  const { data: session } = useSession();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
 
+  const getReadStateKey = (userId: string) => `caselog.notifications.read.${userId}`;
+
+  const getReadIds = (userId: string): string[] => {
+    try {
+      const raw = localStorage.getItem(getReadStateKey(userId));
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as unknown;
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        'readIds' in parsed &&
+        Array.isArray((parsed as { readIds?: unknown }).readIds)
+      ) {
+        return (parsed as { readIds: string[] }).readIds;
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  const addReadId = (notificationId: string) => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+    const current = getReadIds(userId);
+    if (current.includes(notificationId)) return;
+    try {
+      localStorage.setItem(getReadStateKey(userId), JSON.stringify({ readIds: [...current, notificationId] }));
+    } catch {
+      return;
+    }
+  };
+
   useEffect(() => {
+    if (!session?.user?.id) return;
     fetchNotifications();
-  }, []);
+  }, [session?.user?.id]);
 
   const fetchNotifications = async () => {
     try {
       const response = await fetch('/api/notifications');
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.notifications || []);
+        const nextNotifications = (data.notifications || []) as Notification[];
+        const userId = session?.user?.id;
+        const readIds = userId ? getReadIds(userId) : [];
+        const normalized = nextNotifications.map((n) => ({
+          ...n,
+          read: n.read || readIds.includes(n.id),
+        }));
+        setNotifications(normalized);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -54,7 +95,8 @@ export default function NotificationsPage() {
       });
 
       if (response.ok) {
-        setNotifications(notifications.map(n => 
+        addReadId(notificationId);
+        setNotifications(notifications.map(n =>
           n.id === notificationId ? { ...n, read: true } : n
         ));
         toast.success('Notification marked as read');
@@ -77,6 +119,8 @@ export default function NotificationsPage() {
           })
         )
       );
+
+      unreadIds.forEach(addReadId);
       setNotifications(notifications.map(n => ({ ...n, read: true })));
       toast.success('All notifications marked as read');
     } catch (error) {

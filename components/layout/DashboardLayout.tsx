@@ -28,6 +28,7 @@ import {
   TrendingUp,
   Archive,
   UserPlus,
+  Calendar,
 } from 'lucide-react';
 import { useState } from 'react';
 import { getAccessLevelLabel } from '@/lib/utils';
@@ -50,6 +51,10 @@ interface Notification {
   caseId?: string;
 }
 
+type ReadState = {
+  readIds: string[];
+};
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
@@ -59,6 +64,46 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [emailsUnreadCount, setEmailsUnreadCount] = useState(0);
+  const [chatsUnreadCount, setChatsUnreadCount] = useState(0);
+  const [now, setNow] = useState(() => new Date());
+
+  const getReadStateKey = (userId: string) => `caselog.notifications.read.${userId}`;
+
+  const getReadState = (userId: string): ReadState => {
+    try {
+      const raw = localStorage.getItem(getReadStateKey(userId));
+      if (!raw) return { readIds: [] };
+      const parsed = JSON.parse(raw) as unknown;
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        'readIds' in parsed &&
+        Array.isArray((parsed as { readIds?: unknown }).readIds)
+      ) {
+        return { readIds: (parsed as { readIds: string[] }).readIds };
+      }
+      return { readIds: [] };
+    } catch {
+      return { readIds: [] };
+    }
+  };
+
+  const setReadState = (userId: string, next: ReadState) => {
+    try {
+      localStorage.setItem(getReadStateKey(userId), JSON.stringify(next));
+    } catch {
+      return;
+    }
+  };
+
+  const markLocalRead = (notificationId: string) => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+    const current = getReadState(userId);
+    if (current.readIds.includes(notificationId)) return;
+    setReadState(userId, { readIds: [...current.readIds, notificationId] });
+  };
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
@@ -67,9 +112,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     if (stateName) {
       setSelectedStateName(stateName);
     }
+  }, []);
 
-    // Fetch notifications
+  useEffect(() => {
+    if (!session?.user?.id) return;
     fetchNotifications();
+    fetchUnreadSummary();
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchUnreadSummary();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Basic keyboard shortcuts (no dependencies)
@@ -117,11 +175,31 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       if (response.ok) {
         const data = await response.json();
         const nextNotifications = (data.notifications || []) as Notification[];
-        setNotifications(nextNotifications);
-        setUnreadCount(nextNotifications.filter((n) => !n.read).length);
+
+        const userId = session?.user?.id;
+        const readIds = userId ? getReadState(userId).readIds : [];
+        const normalized = nextNotifications.map((n) => ({
+          ...n,
+          read: n.read || readIds.includes(n.id),
+        }));
+
+        setNotifications(normalized);
+        setUnreadCount(normalized.filter((n) => !n.read).length);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const fetchUnreadSummary = async () => {
+    try {
+      const response = await fetch('/api/notifications/summary');
+      if (!response.ok) return;
+      const data = (await response.json()) as { emailsUnread?: number; chatsUnread?: number };
+      setEmailsUnreadCount(typeof data.emailsUnread === 'number' ? data.emailsUnread : 0);
+      setChatsUnreadCount(typeof data.chatsUnread === 'number' ? data.chatsUnread : 0);
+    } catch (error) {
+      console.error('Error fetching unread summary:', error);
     }
   };
 
@@ -132,6 +210,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ read: true }),
       });
+      markLocalRead(notificationId);
       fetchNotifications();
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -162,6 +241,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   if (!session?.user) {
     return null;
   }
+
+  const totalUnreadCount = unreadCount + emailsUnreadCount + chatsUnreadCount;
 
   const permissions = getPermissions(
     session.user.accessLevel,
@@ -492,6 +573,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="hidden sm:flex items-center space-x-3">
+                <div className="text-right">
+                  <div className="text-xs font-medium text-gray-900">
+                    {now.toLocaleDateString()}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {now.toLocaleTimeString()}
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/dashboard/calendar')}
+                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                  type="button"
+                >
+                  <Calendar className="w-6 h-6" />
+                </button>
+              </div>
               {/* Notifications */}
               <div className="relative">
                 <button
@@ -499,9 +597,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
                 >
                   <Bell className="w-6 h-6" />
-                  {unreadCount > 0 && (
+                  {totalUnreadCount > 0 && (
                     <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
-                      {unreadCount}
+                      {totalUnreadCount}
                     </span>
                   )}
                 </button>

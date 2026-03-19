@@ -17,6 +17,7 @@ model Tenant {
   updatedAt DateTime   @updatedAt
   cases     Case[]
   users     User[]
+  calendarEvents CalendarEvent[]
 
   @@index([type])
   @@index([code])
@@ -47,6 +48,7 @@ model User {
   pageContent        PageContent[]   @relation("PageContentEditor")
   savedSearches      SavedSearch[]   @relation("UserSavedSearches")
   searchHistory      SearchHistory[] @relation("UserSearchHistory")
+  calendarEventsCreated CalendarEvent[] @relation("CalendarEventCreatedBy")
   tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -1957,6 +1959,28 @@ enum userrole {
   MODERATOR
   ANALYST
   VIEWER
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  createdById String
+  title       String
+  description String?  @db.Text
+  location    String?
+  startAt     DateTime
+  endAt       DateTime
+  allDay      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("CalendarEventCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdById])
+  @@index([startAt])
+  @@index([endAt])
 }
 
 // Internal Email System
