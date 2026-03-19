@@ -292,7 +292,7 @@ export const UI_CONFIG = {
       width: 40,
       height: 40,
     },
-    favicon: '/favicon.ico',
+    favicon: '/state-logos/MoJ_logo.jpeg',
     appleTouchIcon: '/apple-touch-icon.png',
     manifest: '/site.webmanifest',
     themeColor: THEME_COLORS.primary[600],

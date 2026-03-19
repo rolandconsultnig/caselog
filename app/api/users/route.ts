@@ -76,15 +76,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { firstName, lastName, email, password, accessLevel, tenantId } = body;
+    const { firstName, lastName, email, username: usernameFromBody, password, accessLevel, tenantId } = body;
+
     const username: string =
-      typeof body.username === 'string' && body.username.trim()
-        ? body.username.trim()
-        : typeof email === 'string'
+      typeof usernameFromBody === 'string' && usernameFromBody.trim()
+        ? usernameFromBody.trim()
+        : typeof email === 'string' && email.trim()
           ? email.split('@')[0]
           : '';
 
-    if (!firstName || !lastName || !email || !password || !accessLevel || !tenantId || !username) {
+    const emailForDb = typeof email === 'string' && email.trim() ? email.trim() : undefined;
+
+    if (!firstName || !lastName || !password || !accessLevel || !tenantId || !username) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -126,7 +129,7 @@ export async function POST(request: NextRequest) {
         username,
         firstName,
         lastName,
-        email,
+        email: emailForDb,
         password: hashedPassword,
         accessLevel,
         tenant: { connect: { id: tenantId } },

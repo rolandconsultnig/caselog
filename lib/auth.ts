@@ -9,23 +9,33 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        username: { label: 'Username', type: 'text' },
+        username: { label: 'Username or Email', type: 'text' },
         password: { label: 'Password', type: 'password' },
         tenantId: { label: 'Tenant ID', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
-          throw new Error('Invalid credentials');
+          return null;
         }
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { username: credentials.username },
+          const identifier = credentials.username.trim();
+          // Allow login using either username OR email.
+          // If the identifier looks like an email, normalize it to lowercase for matching.
+          const emailIdentifier = identifier.includes('@') ? identifier.toLowerCase() : identifier;
+
+          const user = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { username: identifier },
+                { email: { equals: emailIdentifier, mode: 'insensitive' } },
+              ],
+            },
             include: { tenant: true },
           });
 
           if (!user || !user.isActive) {
-            throw new Error('Invalid credentials');
+            return null;
           }
 
           const isPasswordValid = await bcrypt.compare(
@@ -34,7 +44,7 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (!isPasswordValid) {
-            throw new Error('Invalid credentials');
+            return null;
           }
 
           // Validate tenant access: User can only log in to their assigned state
@@ -95,11 +105,11 @@ export const authOptions: NextAuthOptions = {
             originalTenantId: user.tenantId, // Store original tenant for reference
           };
         } catch (error) {
-          console.error('Database error during authentication:', error);
           const message = error instanceof Error ? error.message : '';
-          if (message === 'Invalid credentials' || message.startsWith('Access denied:')) {
+          if (message.startsWith('Access denied:')) {
             throw error;
           }
+          console.error('Database error during authentication:', error);
           throw new Error('Authentication service unavailable');
         }
       },

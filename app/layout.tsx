@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Sexual and Gender-Based Violence Information System - Case Management',
   description: 'National Sexual and Gender-Based Violence Case Portal - Federated SGBV Case Management System for Nigerian States and Federal Ministry of Justice',
+  icons: {
+    icon: '/state-logos/MoJ_logo.jpeg',
+  },
 };
 
 export default function RootLayout({

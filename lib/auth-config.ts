@@ -53,7 +53,7 @@ export const AUTH_CONFIG = {
     brandName: APP_CONFIG.fullName,
     shortName: APP_CONFIG.name,
     logoUrl: '/images/logo.png',
-    faviconUrl: '/favicon.ico',
+    faviconUrl: '/state-logos/MoJ_logo.jpeg',
     primaryColor: '#2563eb',
     theme: 'light',
   },

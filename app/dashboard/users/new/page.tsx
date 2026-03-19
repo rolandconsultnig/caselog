@@ -51,6 +51,7 @@ export default function NewUserPage() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    username: '',
     email: '',
     phoneNumber: '',
     password: '',
@@ -101,8 +102,8 @@ export default function NewUserPage() {
 
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!formData.username.trim()) newErrors.username = 'Username is required';
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
     if (!formData.password) newErrors.password = 'Password is required';
@@ -212,8 +213,26 @@ export default function NewUserPage() {
               </div>
 
               <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                  Username <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                    errors.username ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {errors.username && (
+                  <p className="mt-1 text-sm text-red-600">{errors.username}</p>
+                )}
+              </div>
+
+              <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email <span className="text-red-500">*</span>
+                  Email (optional)
                 </label>
                 <input
                   id="email"
